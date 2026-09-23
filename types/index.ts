@@ -59,6 +59,7 @@ export interface OCRResult {
   invoiceNumber: string;
   vendor: string;
   warrantyPeriod: string; // e.g. "12 Months" or "2 Years"
+  rawText?: string;
 }
 
 export interface DashboardStats {
