@@ -1,0 +1,30 @@
+{
+  "users": [
+    {
+      "uid": "user-cm9oaXRhbnViaGF2",
+      "name": "Anubhav Rohit",
+      "email": "rohitanubhav01@gmail.com",
+      "createdAt": "2026-09-23T18:00:00.000Z"
+    }
+  ],
+  "warranties": [
+    {
+      "productName": "Tiago",
+      "brand": "Tata",
+      "category": "Vehicle",
+      "purchaseDate": "2026-09-22",
+      "warrantyStartDate": "2026-09-23",
+      "warrantyEndDate": "2027-09-23",
+      "purchasePrice": 950000,
+      "store": "Tata",
+      "serialNumber": "",
+      "invoiceNumber": "",
+      "notes": "",
+      "id": "w-1790186686652",
+      "userId": "user-cm9oaXRhbnViaGF2",
+      "createdAt": "2026-09-23T18:04:46.652Z",
+      "updatedAt": "2026-09-23T18:14:05.628Z"
+    }
+  ],
+  "documents": []
+}
