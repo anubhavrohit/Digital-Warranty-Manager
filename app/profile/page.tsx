@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { useTheme } from '@/lib/theme-context';
 import { formatDate, formatCurrency, calculateDashboardStats } from '@/lib/warranty-utils';
 import { Sidebar } from '@/components/ui/Sidebar';
 import { Topbar } from '@/components/ui/Topbar';
@@ -33,10 +34,14 @@ import {
   Save,
   HardDrive,
   Check,
+  Sun,
+  Moon,
+  Monitor,
 } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 export default function ProfilePage() {
+  const { theme, setTheme } = useTheme();
   const {
     user,
     loading,
@@ -517,6 +522,53 @@ export default function ProfilePage() {
                 </Button>
               </div>
             </form>
+          </div>
+
+          {/* Section: System Theme & Appearance */}
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-cream-dark dark:border-slate-800 p-6 sm:p-8 shadow-warm space-y-6">
+            <h3 className="text-sm font-extrabold uppercase tracking-wider text-forest dark:text-slate-100 border-b border-cream-dark/60 dark:border-slate-800 pb-3 flex items-center gap-2">
+              <Sun className="w-4 h-4 text-carrot" />
+              <span>System Theme & Appearance</span>
+            </h3>
+
+            <p className="text-xs text-forest/80 dark:text-slate-300 leading-relaxed max-w-xl">
+              Customize the look and feel of WarrantyVault. Choose light mode, sleek dark mode, or automatic synchronization with your operating system preferences.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl">
+              {[
+                { mode: 'light' as const, label: 'Light Mode', icon: Sun, desc: 'Warm cream & emerald palette' },
+                { mode: 'dark' as const, label: 'Dark Mode', icon: Moon, desc: 'Sleek obsidian & slate theme' },
+                { mode: 'system' as const, label: 'System Auto', icon: Monitor, desc: 'Matches device OS settings' },
+              ].map((tOption) => {
+                const Icon = tOption.icon;
+                const isSelected = theme === tOption.mode;
+
+                return (
+                  <button
+                    key={tOption.mode}
+                    type="button"
+                    onClick={() => setTheme(tOption.mode)}
+                    className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
+                      isSelected
+                        ? 'border-forest bg-forest/5 dark:border-sunshine dark:bg-slate-800 ring-2 ring-forest/20 dark:ring-sunshine/30'
+                        : 'border-cream-dark dark:border-slate-800 hover:border-forest/40 dark:hover:border-slate-700 bg-cream-light/40 dark:bg-slate-900/60'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between w-full mb-3">
+                      <div className={`p-2 rounded-xl ${isSelected ? 'bg-forest text-sunshine' : 'bg-cream-dark/50 dark:bg-slate-800 text-forest/70 dark:text-slate-300'}`}>
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      {isSelected && <CheckCircle2 className="w-5 h-5 text-forest dark:text-sunshine" />}
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-forest dark:text-slate-100">{tOption.label}</h4>
+                      <p className="text-[11px] text-forest/60 dark:text-slate-400 mt-0.5">{tOption.desc}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Section 2: Password & Account Security */}

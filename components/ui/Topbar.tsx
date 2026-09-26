@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { Search, Menu, User, Plus } from 'lucide-react';
 import { NotificationsPopover } from './NotificationsPopover';
+import { ThemeToggle } from './ThemeToggle';
 import { Button } from './Button';
 
 interface TopbarProps {
@@ -60,6 +61,9 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenMobileMenu }) => {
 
         {/* Real-time Notifications Popover */}
         <NotificationsPopover />
+
+        {/* System Theme Toggle */}
+        <ThemeToggle />
 
         {/* User profile dropdown trigger */}
         <Link href="/profile" className="flex items-center gap-2 pl-2 border-l border-cream-dark/60">

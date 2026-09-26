@@ -18,6 +18,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { Badge } from './Badge';
+import { ThemeToggle } from './ThemeToggle';
 
 interface SidebarProps {
   onCloseMobile?: () => void;
@@ -99,9 +100,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
         </nav>
       </div>
 
-      {/* User info & Logout */}
-      <div className="pt-4 border-t border-cream-dark/60">
-        <div className="flex items-center gap-3 px-3 py-2 mb-2 rounded-xl bg-white/60 border border-cream-dark/50">
+      {/* User info, Theme & Logout */}
+      <div className="pt-3 border-t border-cream-dark/60 space-y-2">
+        <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-white/40 dark:bg-slate-800/40 border border-cream-dark/40 dark:border-slate-800">
+          <span className="text-[11px] font-bold text-forest/70 dark:text-slate-400">Theme</span>
+          <ThemeToggle showLabel />
+        </div>
+
+        <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-white/60 dark:bg-slate-800/60 border border-cream-dark/50 dark:border-slate-800">
           <div className="w-8 h-8 rounded-full bg-forest text-sunshine font-bold text-xs flex items-center justify-center shrink-0">
             {user?.name?.charAt(0).toUpperCase() || 'U'}
           </div>
