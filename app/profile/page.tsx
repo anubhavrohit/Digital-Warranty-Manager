@@ -36,6 +36,7 @@ import {
   Check,
   Sun,
   Moon,
+  Zap,
   Monitor,
 } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -535,10 +536,11 @@ export default function ProfilePage() {
               Customize the look and feel of WarrantyVault. Choose light mode, sleek dark mode, or automatic synchronization with your operating system preferences.
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-4xl">
               {[
-                { mode: 'light' as const, label: 'Light Mode', icon: Sun, desc: 'Warm cream & emerald palette' },
-                { mode: 'dark' as const, label: 'Dark Mode', icon: Moon, desc: 'Sleek obsidian & slate theme' },
+                { mode: 'light' as const, label: 'Light Mode (Default)', icon: Sun, desc: 'Warm cream & emerald palette' },
+                { mode: 'dark' as const, label: 'Dark Slate', icon: Moon, desc: 'Sleek obsidian & slate theme' },
+                { mode: 'amoled' as const, label: 'AMOLED Black', icon: Zap, desc: 'Pure #000000 OLED battery saver' },
                 { mode: 'system' as const, label: 'System Auto', icon: Monitor, desc: 'Matches device OS settings' },
               ].map((tOption) => {
                 const Icon = tOption.icon;

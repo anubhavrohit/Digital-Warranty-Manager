@@ -40,12 +40,15 @@ export default function RootLayout({
             __html: `
               (function() {
                 try {
-                  var t = localStorage.getItem('vw_theme');
-                  var isDark = t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches) || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-                  if (isDark) {
-                    document.documentElement.classList.add('dark');
-                  } else {
-                    document.documentElement.classList.remove('dark');
+                  var t = localStorage.getItem('vw_theme') || 'light';
+                  var root = document.documentElement;
+                  root.classList.remove('dark', 'amoled');
+                  if (t === 'amoled') {
+                    root.classList.add('dark', 'amoled');
+                  } else if (t === 'dark') {
+                    root.classList.add('dark');
+                  } else if (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    root.classList.add('dark');
                   }
                 } catch (e) {}
               })();

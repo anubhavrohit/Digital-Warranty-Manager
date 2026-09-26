@@ -2,13 +2,13 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useTheme, ThemeMode } from '@/lib/theme-context';
-import { Sun, Moon, Monitor, Check } from 'lucide-react';
+import { Sun, Moon, Zap, Monitor, Check } from 'lucide-react';
 
 export const ThemeToggle: React.FC<{ showLabel?: boolean; className?: string }> = ({
   showLabel = false,
   className = '',
 }) => {
-  const { theme, resolvedTheme, setTheme, toggleTheme } = useTheme();
+  const { theme, resolvedTheme, setTheme } = useTheme();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -23,25 +23,28 @@ export const ThemeToggle: React.FC<{ showLabel?: boolean; className?: string }> 
   }, []);
 
   const options: { mode: ThemeMode; label: string; icon: React.FC<{ className?: string }> }[] = [
-    { mode: 'light', label: 'Light', icon: Sun },
-    { mode: 'dark', label: 'Dark', icon: Moon },
-    { mode: 'system', label: 'System', icon: Monitor },
+    { mode: 'light', label: 'Light (Default)', icon: Sun },
+    { mode: 'dark', label: 'Dark Slate', icon: Moon },
+    { mode: 'amoled', label: 'AMOLED Black', icon: Zap },
+    { mode: 'system', label: 'System Auto', icon: Monitor },
   ];
+
+  const getActiveIcon = () => {
+    if (resolvedTheme === 'amoled') return <Zap className="w-4 h-4 text-sunshine" />;
+    if (resolvedTheme === 'dark') return <Moon className="w-4 h-4 text-sunshine" />;
+    return <Sun className="w-4 h-4 text-carrot" />;
+  };
 
   return (
     <div className={`relative inline-block ${className}`} ref={dropdownRef}>
       <button
         type="button"
         onClick={() => setDropdownOpen(!dropdownOpen)}
-        className="p-2 rounded-xl text-forest hover:bg-cream-dark/50 dark:text-slate-200 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 border border-cream-dark/50 dark:border-slate-700/60"
-        title={`Current Theme: ${theme.toUpperCase()} (${resolvedTheme} active)`}
+        className="p-2 rounded-xl text-forest hover:bg-cream-dark/50 dark:text-slate-200 dark:hover:bg-slate-800 transition-colors flex items-center gap-1.5 border border-cream-dark/50 dark:border-slate-700/60 cursor-pointer"
+        title={`Current Theme: ${theme.toUpperCase()}`}
         aria-label="Toggle theme"
       >
-        {resolvedTheme === 'dark' ? (
-          <Moon className="w-4 h-4 text-sunshine" />
-        ) : (
-          <Sun className="w-4 h-4 text-carrot" />
-        )}
+        {getActiveIcon()}
 
         {showLabel && (
           <span className="text-xs font-bold text-forest dark:text-slate-200 capitalize">
@@ -51,7 +54,7 @@ export const ThemeToggle: React.FC<{ showLabel?: boolean; className?: string }> 
       </button>
 
       {dropdownOpen && (
-        <div className="absolute right-0 mt-2 w-40 bg-white dark:bg-slate-900 border border-cream-dark/70 dark:border-slate-800 rounded-2xl shadow-warm dark:shadow-2xl z-50 py-1.5 animate-fade-in">
+        <div className="absolute right-0 mt-2 w-44 bg-white dark:bg-slate-900 border border-cream-dark/70 dark:border-slate-800 rounded-2xl shadow-warm dark:shadow-2xl z-50 py-1.5 animate-fade-in">
           <div className="px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-forest/50 dark:text-slate-400 border-b border-cream-dark/40 dark:border-slate-800/80 mb-1">
             Choose Theme
           </div>
@@ -67,7 +70,7 @@ export const ThemeToggle: React.FC<{ showLabel?: boolean; className?: string }> 
                   setTheme(opt.mode);
                   setDropdownOpen(false);
                 }}
-                className={`w-full flex items-center justify-between px-3 py-2 text-xs font-bold transition-colors ${
+                className={`w-full flex items-center justify-between px-3 py-2 text-xs font-bold transition-colors cursor-pointer ${
                   isSelected
                     ? 'bg-forest/10 text-forest dark:bg-slate-800 dark:text-sunshine'
                     : 'text-forest/80 hover:bg-cream-light dark:text-slate-300 dark:hover:bg-slate-800/60'

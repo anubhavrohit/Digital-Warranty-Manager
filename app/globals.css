@@ -132,6 +132,65 @@ html.dark .bg-kiwi-light {
   border-color: rgba(154, 188, 5, 0.3) !important;
 }
 
+/* AMOLED Pure Black OLED Theme Overrides */
+html.dark.amoled,
+html.dark.amoled body {
+  background-color: #000000 !important;
+  color: #FFFFFF !important;
+}
+
+html.dark.amoled body {
+  background-color: #000000 !important;
+}
+
+html.dark.amoled ::-webkit-scrollbar-track {
+  background: #000000 !important;
+}
+
+html.dark.amoled ::-webkit-scrollbar-thumb {
+  background: #262626 !important;
+}
+
+html.dark.amoled .bg-cream,
+html.dark.amoled .bg-cream-light,
+html.dark.amoled .bg-cream-light\/60,
+html.dark.amoled .bg-cream-light\/50 {
+  background-color: #000000 !important;
+}
+
+html.dark.amoled .bg-white,
+html.dark.amoled .bg-white\/80,
+html.dark.amoled .bg-white\/60 {
+  background-color: #050505 !important;
+  color: #FFFFFF !important;
+}
+
+html.dark.amoled .border-cream-dark,
+html.dark.amoled .border-cream-dark\/70,
+html.dark.amoled .border-cream-dark\/60,
+html.dark.amoled .border-cream-dark\/50,
+html.dark.amoled .border-cream-dark\/40 {
+  border-color: #1F2937 !important;
+}
+
+html.dark.amoled aside {
+  background-color: #000000 !important;
+  border-color: #171717 !important;
+}
+
+html.dark.amoled header {
+  background-color: rgba(0, 0, 0, 0.95) !important;
+  border-color: #171717 !important;
+}
+
+html.dark.amoled input,
+html.dark.amoled select,
+html.dark.amoled textarea {
+  background-color: #000000 !important;
+  color: #FFFFFF !important;
+  border-color: #262626 !important;
+}
+
 /* Custom light scrollbars */
 ::-webkit-scrollbar {
   width: 8px;
