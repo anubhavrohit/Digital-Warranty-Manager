@@ -24,9 +24,15 @@ body {
   margin: 0;
   background-color: #F3E8CC;
   color: #18542A;
-  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-jakarta), var(--font-outfit), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+h1, h2, h3, h4, h5, h6, .font-heading {
+  font-family: var(--font-outfit), var(--font-jakarta), system-ui, sans-serif;
+  letter-spacing: -0.02em;
 }
 
 /* Dark Mode Global Overrides */

@@ -47,7 +47,8 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ['var(--font-jakarta)', 'Inter', 'sans-serif'],
+        sans: ['var(--font-jakarta)', 'var(--font-outfit)', 'Inter', 'system-ui', 'sans-serif'],
+        heading: ['var(--font-outfit)', 'var(--font-jakarta)', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
         warm: '0 4px 20px -2px rgba(24, 84, 42, 0.08), 0 2px 6px -1px rgba(24, 84, 42, 0.04)',
