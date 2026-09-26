@@ -1,5 +1,5 @@
 import { recognize } from 'tesseract.js';
-import { OCRResult, ProductCategory } from '@/types';
+import { OCRResult, GenericOCRResult, ProductCategory } from '@/types';
 
 /**
  * Advanced Browser-Side OCR and Multi-Format Invoice Parsing Engine.
@@ -572,4 +572,168 @@ export function inferCategoryFromProduct(productName: string, brand: string): Pr
   }
 
   return 'Electronics';
+}
+
+/**
+ * Generic OCR Engine: Extracts raw text and categorizes entities into structured types
+ * (Prices, Dates, Identifiers, Contact Info, Organizations, Products).
+ */
+export async function performGenericOCR(
+  file: File,
+  onProgress?: (status: string, progress: number) => void
+): Promise<GenericOCRResult> {
+  let rawText = '';
+  const fileType = file.type || '';
+  const isPdf = fileType === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+  let extractionMethod: 'PDF Direct Text' | 'Tesseract.js Engine' = 'Tesseract.js Engine';
+
+  if (onProgress) onProgress('Preparing document for Generic OCR...', 0.1);
+
+  try {
+    if (isPdf) {
+      if (onProgress) onProgress('Parsing PDF text content...', 0.2);
+      rawText = await extractTextFromPdfFile(file);
+
+      if (rawText && rawText.trim().length >= 20) {
+        extractionMethod = 'PDF Direct Text';
+      } else {
+        if (onProgress) onProgress('Rendering PDF page to image for OCR...', 0.4);
+        const canvas = await renderPdfPageToCanvas(file);
+        if (canvas) {
+          if (onProgress) onProgress('Recognizing raw optical characters...', 0.6);
+          rawText = await runTesseractOCR(canvas, onProgress);
+        }
+      }
+    } else {
+      if (onProgress) onProgress('Enhancing image contrast for OCR...', 0.3);
+      const processedImage = await preprocessImageForOCR(file);
+
+      if (onProgress) onProgress('Recognizing raw optical characters...', 0.5);
+      rawText = await runTesseractOCR(processedImage, onProgress);
+    }
+  } catch (err) {
+    console.warn('Generic OCR error:', err);
+  }
+
+  if (onProgress) onProgress('Categorizing and identifying info types...', 0.9);
+
+  const result = categorizeGenericOCRText(rawText, file.name, extractionMethod);
+
+  if (onProgress) onProgress('Complete', 1.0);
+
+  return result;
+}
+
+/**
+ * Identifies entity categories (Prices, Dates, IDs, Contacts, Products, Companies) from raw text.
+ */
+function categorizeGenericOCRText(
+  text: string,
+  fileName: string,
+  extractionMethod: 'PDF Direct Text' | 'Tesseract.js Engine'
+): GenericOCRResult {
+  const fullTextLower = text.toLowerCase();
+
+  // 1. Document Type Classification
+  let documentType: GenericOCRResult['documentType'] = 'General Document';
+  if (fullTextLower.includes('tax invoice') || fullTextLower.includes('bill of supply') || fullTextLower.includes('gstin')) {
+    documentType = 'Tax Invoice';
+  } else if (fullTextLower.includes('cash receipt') || fullTextLower.includes('receipt') || fullTextLower.includes('cash memo')) {
+    documentType = 'Store Receipt';
+  } else if (fullTextLower.includes('warranty') || fullTextLower.includes('guarantee')) {
+    documentType = 'Warranty Card';
+  } else if (fullTextLower.includes('electricity') || fullTextLower.includes('water bill') || fullTextLower.includes('broadband')) {
+    documentType = 'Utility Bill';
+  } else if (fullTextLower.includes('waybill') || fullTextLower.includes('tracking') || fullTextLower.includes('courier')) {
+    documentType = 'Shipping Label';
+  }
+
+  // 2. Extract Prices / Currency Amounts
+  const priceMatches = Array.from(
+    text.matchAll(/(?:₹|rs\.?|inr|\$|€)\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{2})?|\b[0-9]{3,7}\b(?:\/-)?)/gi)
+  );
+  const pricesSet = new Set<string>();
+  for (const m of priceMatches) {
+    const val = m[0].trim();
+    if (val.length > 1) pricesSet.add(val);
+  }
+
+  // 3. Extract Dates
+  const dateMatches = Array.from(
+    text.matchAll(/\b(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4}|\d{4}[\/\.\-]\d{1,2}[\/\.\-]\d{1,2}|\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{2,4})\b/gi)
+  );
+  const datesSet = new Set<string>();
+  for (const m of dateMatches) {
+    datesSet.add(m[0].trim());
+  }
+
+  // 4. Extract Identifiers (Invoice #, Serial #, Order ID, GSTIN, HSN, IMEI)
+  const idMatches = Array.from(
+    text.matchAll(/(?:invoice|inv|order|bill|serial|s\/n|sn|gstin|hsn|cin|pan|imei)\s*(?:no|num|number|#)?[:\s]*([a-zA-Z0-9\/-]{4,30})/gi)
+  );
+  const identifiersSet = new Set<string>();
+  for (const m of idMatches) {
+    if (m[0] && m[0].length < 45) {
+      identifiersSet.add(m[0].trim());
+    }
+  }
+
+  // 5. Extract Contacts (Emails, Phones, Websites)
+  const emailMatches = Array.from(text.matchAll(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g));
+  const phoneMatches = Array.from(text.matchAll(/\b(?:\+91[\s\-]?)?[6-9]\d{9}\b/g));
+  const webMatches = Array.from(text.matchAll(/\b(?:https?:\/\/)?www\.[A-Za-z0-9.\/-]+\b/g));
+  const contactsSet = new Set<string>();
+  for (const m of emailMatches) contactsSet.add(`Email: ${m[0]}`);
+  for (const m of phoneMatches) contactsSet.add(`Phone: ${m[0]}`);
+  for (const m of webMatches) contactsSet.add(`Web: ${m[0]}`);
+
+  // 6. Extract Organizations / Stores
+  const orgSet = new Set<string>();
+  const lines = text.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+  if (lines.length > 0) {
+    // Check top lines for vendor
+    for (let i = 0; i < Math.min(3, lines.length); i++) {
+      if (lines[i].length > 3 && lines[i].length < 40 && !lines[i].toLowerCase().includes('invoice')) {
+        orgSet.add(lines[i]);
+        break;
+      }
+    }
+  }
+
+  // 7. Extract Products / Line items
+  const productSet = new Set<string>();
+  for (const line of lines) {
+    if (
+      line.length > 8 &&
+      line.length < 60 &&
+      !line.toLowerCase().includes('total') &&
+      !line.toLowerCase().includes('invoice') &&
+      !line.toLowerCase().includes('address') &&
+      !line.toLowerCase().includes('gst')
+    ) {
+      productSet.add(line);
+      if (productSet.size >= 5) break;
+    }
+  }
+
+  const charCount = text.length;
+  const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+  const summary = `Classified as ${documentType}. Identified ${pricesSet.size} price values, ${datesSet.size} dates, and ${identifiersSet.size} reference identifiers.`;
+
+  return {
+    documentType,
+    rawText: text,
+    charCount,
+    wordCount,
+    extractionMethod,
+    entities: {
+      prices: Array.from(pricesSet),
+      dates: Array.from(datesSet),
+      identifiers: Array.from(identifiersSet),
+      contacts: Array.from(contactsSet),
+      products: Array.from(productSet),
+      organizations: Array.from(orgSet),
+    },
+    summary,
+  };
 }

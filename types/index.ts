@@ -84,6 +84,23 @@ export interface OCRResult {
   };
 }
 
+export interface GenericOCRResult {
+  documentType: 'Tax Invoice' | 'Store Receipt' | 'Warranty Card' | 'Utility Bill' | 'Shipping Label' | 'General Document';
+  rawText: string;
+  charCount: number;
+  wordCount: number;
+  extractionMethod: 'PDF Direct Text' | 'Tesseract.js Engine';
+  entities: {
+    prices: string[];
+    dates: string[];
+    identifiers: string[];
+    contacts: string[];
+    products: string[];
+    organizations: string[];
+  };
+  summary: string;
+}
+
 export interface DashboardStats {
   totalProducts: number;
   activeWarranties: number;

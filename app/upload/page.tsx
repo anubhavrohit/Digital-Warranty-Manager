@@ -4,8 +4,12 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { extractWarrantyDataFromImage, inferCategoryFromProduct } from '@/lib/ocr-service';
-import { OCRResult, ProductCategory } from '@/types';
+import {
+  extractWarrantyDataFromImage,
+  performGenericOCR,
+  inferCategoryFromProduct,
+} from '@/lib/ocr-service';
+import { OCRResult, GenericOCRResult, ProductCategory } from '@/types';
 import { Sidebar } from '@/components/ui/Sidebar';
 import { Topbar } from '@/components/ui/Topbar';
 import { FileUploader } from '@/components/ui/FileUploader';
@@ -31,6 +35,14 @@ import {
   FileCheck,
   Eye,
   Info,
+  Search,
+  Scan,
+  Copy,
+  Check,
+  Layers,
+  Phone,
+  Hash,
+  Building,
 } from 'lucide-react';
 
 export default function UploadBillPage() {
@@ -43,13 +55,22 @@ export default function UploadBillPage() {
 
   // Workflow steps: 'upload' -> 'scanning' -> 'review'
   const [step, setStep] = useState<'upload' | 'scanning' | 'review'>('upload');
+  const [ocrMode, setOcrMode] = useState<'warranty' | 'generic'>('warranty');
+
+  // Warranty Mode State
   const [extractedData, setExtractedData] = useState<OCRResult | null>(null);
+
+  // Generic OCR Mode State
+  const [genericData, setGenericData] = useState<GenericOCRResult | null>(null);
+  const [genericSearchQuery, setGenericSearchQuery] = useState('');
+  const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
+
   const [scanProgress, setScanProgress] = useState<number>(0);
   const [scanStatusMessage, setScanStatusMessage] = useState<string>('Initializing OCR...');
   const [showRawText, setShowRawText] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Editable Form Fields (Pre-populated by OCR)
+  // Editable Form Fields (Pre-populated by Warranty OCR)
   const [productName, setProductName] = useState('');
   const [brand, setBrand] = useState('');
   const [category, setCategory] = useState<ProductCategory>('Electronics');
@@ -80,18 +101,19 @@ export default function UploadBillPage() {
       };
       reader.readAsDataURL(file);
     } else {
-      // PDF or non-image document
       setImagePreviewUrl(null);
     }
   };
 
-  const handleStartOCR = async () => {
+  // 1. Warranty OCR Mode Trigger
+  const handleStartWarrantyOCR = async () => {
     if (!selectedFile) return;
 
     try {
+      setOcrMode('warranty');
       setStep('scanning');
       setScanProgress(10);
-      setScanStatusMessage('Loading document engine...');
+      setScanStatusMessage('Loading Warranty OCR engine...');
 
       const result = await extractWarrantyDataFromImage(selectedFile, (msg, prog) => {
         setScanStatusMessage(msg);
@@ -100,7 +122,7 @@ export default function UploadBillPage() {
 
       setExtractedData(result);
 
-      // Pre-fill editable fields
+      // Pre-fill editable form fields
       setProductName(result.productName);
       setBrand(result.brand);
       setCategory(inferCategoryFromProduct(result.productName, result.brand));
@@ -108,7 +130,6 @@ export default function UploadBillPage() {
       setPurchaseDate(result.purchaseDate);
       setWarrantyStartDate(result.purchaseDate);
 
-      // Calculate expiry date based on warranty period text (e.g. "1 Year" or "2 Years")
       const pDate = new Date(result.purchaseDate || Date.now());
       const yearsToAdd = result.warrantyPeriod.includes('2')
         ? 2
@@ -131,14 +152,45 @@ export default function UploadBillPage() {
     }
   };
 
+  // 2. Generic OCR Deep Scan Mode Trigger (Separate Button)
+  const handleStartGenericOCR = async () => {
+    if (!selectedFile) return;
+
+    try {
+      setOcrMode('generic');
+      setStep('scanning');
+      setScanProgress(10);
+      setScanStatusMessage('Starting Generic OCR & Entity Classification...');
+
+      const result = await performGenericOCR(selectedFile, (msg, prog) => {
+        setScanStatusMessage(msg);
+        setScanProgress(Math.round(prog * 100));
+      });
+
+      setGenericData(result);
+      setStep('review');
+    } catch (err) {
+      console.error('Generic OCR Error:', err);
+      setStep('upload');
+      setErrors({ form: 'Generic OCR scan failed. Please try again with another file.' });
+    }
+  };
+
   const handleReset = () => {
     setSelectedFile(null);
     setImagePreviewUrl(null);
     setExtractedData(null);
+    setGenericData(null);
     setStep('upload');
     setScanProgress(0);
     setScanStatusMessage('');
     setErrors({});
+  };
+
+  const copyToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedIndex(id);
+    setTimeout(() => setCopiedIndex(null), 2000);
   };
 
   const categoryOptions = [
@@ -212,7 +264,6 @@ export default function UploadBillPage() {
     }
   };
 
-  // Helper to count how many fields were detected
   const extractedCount = extractedData?.fieldsExtracted
     ? Object.values(extractedData.fieldsExtracted).filter(Boolean).length
     : 0;
@@ -242,13 +293,13 @@ export default function UploadBillPage() {
           <div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sunshine-light border border-sunshine/60 text-forest text-xs font-bold mb-2">
               <Zap className="w-3.5 h-3.5 text-carrot" />
-              <span>Smart AI/OCR Data Extractor</span>
+              <span>Smart AI & Generic OCR Engine</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-forest tracking-tight">
-              Upload Bill & Extract Warranty
+              Upload Document & OCR Inspector
             </h1>
             <p className="text-xs sm:text-sm text-forest/70">
-              Upload your purchase invoice (JPG, PNG, WEBP or PDF) to automatically detect product details, serial numbers, prices, and dates.
+              Choose between <strong>Warranty Bill Extractor</strong> to auto-fill warranty forms or <strong>Generic OCR Deep Scan</strong> to inspect all entity types (prices, dates, IDs, contacts).
             </p>
           </div>
 
@@ -262,7 +313,7 @@ export default function UploadBillPage() {
                     : 'bg-cream-light text-forest/70'
                 }`}
               >
-                1. Upload Bill
+                1. Upload Document
               </div>
               <div
                 className={`py-2 rounded-xl transition-colors ${
@@ -271,21 +322,21 @@ export default function UploadBillPage() {
                     : 'bg-cream-light text-forest/70'
                 }`}
               >
-                2. Read Bill Details
+                2. Run OCR Mode
               </div>
               <div
                 className={`py-2 rounded-xl transition-colors ${
                   step === 'review'
-                    ? 'bg-kiwi text-white shadow-sm'
+                    ? ocrMode === 'generic' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-kiwi text-white shadow-sm'
                     : 'bg-cream-light text-forest/70'
                 }`}
               >
-                3. User Confirmation
+                3. {ocrMode === 'generic' ? 'Generic OCR Inspection' : 'Warranty Confirmation'}
               </div>
             </div>
           </div>
 
-          {/* STEP 1: Upload Area */}
+          {/* STEP 1: Upload Area + TWO SEPARATE BUTTONS */}
           {step === 'upload' && (
             <div className="space-y-6 max-w-3xl mx-auto">
               {errors.form && (
@@ -298,28 +349,91 @@ export default function UploadBillPage() {
               <FileUploader onFileSelect={handleFileSelect} />
 
               {selectedFile && (
-                <div className="flex justify-end gap-3 pt-2">
-                  <Button variant="ghost" onClick={handleReset}>
-                    Clear
-                  </Button>
-                  <Button variant="primary" size="lg" icon={Zap} onClick={handleStartOCR}>
-                    Read Bill Details
-                  </Button>
+                <div className="bg-white p-6 rounded-3xl border border-cream-dark shadow-warm space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-wider text-forest/80 flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-carrot" />
+                      Select Action Mode for &quot;{selectedFile.name}&quot;
+                    </span>
+                    <button
+                      onClick={handleReset}
+                      className="text-xs font-bold text-forest/60 hover:text-tomato transition-colors"
+                    >
+                      Clear File
+                    </button>
+                  </div>
+
+                  {/* TWO SEPARATE BUTTONS */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                    {/* BUTTON 1: Extract Warranty Data */}
+                    <button
+                      onClick={handleStartWarrantyOCR}
+                      className="p-5 rounded-2xl bg-forest hover:bg-forest/90 text-white font-bold text-left shadow-md hover:shadow-lg transition-all group flex flex-col justify-between space-y-3"
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <div className="p-2.5 rounded-xl bg-sunshine text-forest font-bold">
+                          <Zap className="w-5 h-5" />
+                        </div>
+                        <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-sunshine/20 text-sunshine border border-sunshine/40">
+                          Warranty Form
+                        </span>
+                      </div>
+                      <div>
+                        <h4 className="text-base font-extrabold text-sunshine group-hover:translate-x-0.5 transition-transform flex items-center gap-1.5">
+                          Extract Warranty Data
+                          <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </h4>
+                        <p className="text-xs text-white/80 font-normal mt-1">
+                          Auto-extracts product name, serial number, prices, and warranty expiration dates into vault form.
+                        </p>
+                      </div>
+                    </button>
+
+                    {/* BUTTON 2: Generic OCR & Deep Scan */}
+                    <button
+                      onClick={handleStartGenericOCR}
+                      className="p-5 rounded-2xl bg-gradient-to-br from-indigo-700 to-purple-800 hover:from-indigo-800 hover:to-purple-900 text-white font-bold text-left shadow-md hover:shadow-lg transition-all group flex flex-col justify-between space-y-3 border border-indigo-400/30"
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <div className="p-2.5 rounded-xl bg-white/20 text-white font-bold backdrop-blur-sm">
+                          <Scan className="w-5 h-5 text-yellow-300" />
+                        </div>
+                        <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-white/20 text-yellow-200 border border-white/30">
+                          Generic OCR Mode
+                        </span>
+                      </div>
+                      <div>
+                        <h4 className="text-base font-extrabold text-yellow-300 group-hover:translate-x-0.5 transition-transform flex items-center gap-1.5">
+                          Generic OCR & Deep Scan
+                          <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </h4>
+                        <p className="text-xs text-white/80 font-normal mt-1">
+                          Scans full raw optical text, classifies document type, and groups all prices, dates, IDs, and contacts.
+                        </p>
+                      </div>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
           )}
 
-          {/* STEP 2: Scanning Loading Animation with Real Progress Bar */}
+          {/* STEP 2: Scanning Loading Animation */}
           {step === 'scanning' && (
             <div className="bg-white rounded-3xl border border-cream-dark p-8 sm:p-12 text-center space-y-6 shadow-2xl max-w-2xl mx-auto">
               <div className="relative w-24 h-24 mx-auto flex items-center justify-center">
-                <div className="absolute inset-0 rounded-full border-4 border-cream-dark border-t-carrot animate-spin" />
-                <Zap className="w-10 h-10 text-carrot animate-pulse" />
+                <div className={`absolute inset-0 rounded-full border-4 border-cream-dark ${ocrMode === 'generic' ? 'border-t-indigo-600' : 'border-t-carrot'} animate-spin`} />
+                {ocrMode === 'generic' ? (
+                  <Scan className="w-10 h-10 text-indigo-600 animate-pulse" />
+                ) : (
+                  <Zap className="w-10 h-10 text-carrot animate-pulse" />
+                )}
               </div>
 
               <div>
-                <h3 className="text-xl font-extrabold text-forest">Scanning Bill Document...</h3>
+                <h3 className="text-xl font-extrabold text-forest">
+                  {ocrMode === 'generic' ? 'Running Generic OCR & Deep Scan...' : 'Scanning Bill Document...'}
+                </h3>
                 <p className="text-xs font-semibold text-forest/70 mt-1 max-w-sm mx-auto min-h-[20px]">
                   {scanStatusMessage}
                 </p>
@@ -329,7 +443,7 @@ export default function UploadBillPage() {
               <div className="max-w-md mx-auto space-y-2">
                 <div className="w-full bg-cream-dark/40 rounded-full h-3 overflow-hidden p-0.5 border border-cream-dark">
                   <div
-                    className="bg-carrot h-full rounded-full transition-all duration-300 ease-out"
+                    className={`${ocrMode === 'generic' ? 'bg-indigo-600' : 'bg-carrot'} h-full rounded-full transition-all duration-300 ease-out`}
                     style={{ width: `${Math.max(5, scanProgress)}%` }}
                   />
                 </div>
@@ -346,8 +460,293 @@ export default function UploadBillPage() {
             </div>
           )}
 
-          {/* STEP 3: Dynamic Extracted Info Boxes & Form Confirmation */}
-          {step === 'review' && (
+          {/* STEP 3 - MODE A: GENERIC OCR & DEEP SCAN INSPECTOR */}
+          {step === 'review' && ocrMode === 'generic' && genericData && (
+            <div className="space-y-6">
+              {/* Top Document Classification Hero Info Box */}
+              <div className="bg-gradient-to-r from-indigo-900 via-purple-900 to-forest text-white p-6 rounded-3xl shadow-xl space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/20 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 rounded-2xl bg-white/10 backdrop-blur-md text-yellow-300 shrink-0 border border-white/20">
+                      <Scan className="w-7 h-7" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-bold uppercase tracking-widest text-yellow-300">
+                          Generic OCR Content Inspection
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-full bg-yellow-400 text-indigo-950 font-extrabold text-[11px] shadow-sm">
+                          📑 Classified: {genericData.documentType}
+                        </span>
+                      </div>
+                      <h3 className="text-xl font-black text-white mt-1 truncate max-w-md sm:max-w-xl">
+                        {selectedFile?.name || 'Scanned Document'}
+                      </h3>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="sm" onClick={handleReset} className="text-white hover:bg-white/10">
+                      Reset
+                    </Button>
+                    <button
+                      onClick={handleStartWarrantyOCR}
+                      className="px-4 py-2 rounded-xl bg-sunshine hover:bg-sunshine/90 text-forest font-bold text-xs shadow-md transition-transform hover:scale-105 flex items-center gap-1.5"
+                    >
+                      <Zap className="w-4 h-4 text-carrot" />
+                      Convert to Warranty Record
+                    </button>
+                  </div>
+                </div>
+
+                {/* Document Metadata Summary Line */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-1">
+                  <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm border border-white/10">
+                    <div className="text-white/60 font-medium text-[10px] uppercase">Engine Used</div>
+                    <div className="font-bold text-white mt-0.5">{genericData.extractionMethod}</div>
+                  </div>
+                  <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm border border-white/10">
+                    <div className="text-white/60 font-medium text-[10px] uppercase">Characters Read</div>
+                    <div className="font-bold text-yellow-300 mt-0.5">{genericData.charCount.toLocaleString()} chars</div>
+                  </div>
+                  <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm border border-white/10">
+                    <div className="text-white/60 font-medium text-[10px] uppercase">Word Count</div>
+                    <div className="font-bold text-white mt-0.5">{genericData.wordCount} words</div>
+                  </div>
+                  <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm border border-white/10">
+                    <div className="text-white/60 font-medium text-[10px] uppercase">Analysis Summary</div>
+                    <div className="font-semibold text-white/90 text-[11px] truncate mt-0.5">{genericData.summary}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* CATEGORIZED ENTITY CARDS GRID */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* 1. Prices & Financial Data */}
+                <div className="bg-white rounded-3xl border border-cream-dark p-6 shadow-warm space-y-4 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between pb-3 border-b border-cream-dark/60 mb-3">
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-forest flex items-center gap-2">
+                        <Tag className="w-4 h-4 text-carrot" />
+                        Financial Amounts ({genericData.entities.prices.length})
+                      </span>
+                    </div>
+                    {genericData.entities.prices.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {genericData.entities.prices.map((p, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => copyToClipboard(p, `price-${idx}`)}
+                            className="px-3 py-1.5 rounded-xl bg-sunshine-light border border-sunshine text-forest font-bold text-xs hover:scale-105 transition-all flex items-center gap-1.5 shadow-sm"
+                          >
+                            <span>{p}</span>
+                            {copiedIndex === `price-${idx}` ? (
+                              <Check className="w-3.5 h-3.5 text-kiwi" />
+                            ) : (
+                              <Copy className="w-3 h-3 text-forest/60" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs font-medium text-forest/60 italic">No price/currency formats detected.</p>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-forest/50 border-t border-cream-dark/40 pt-2">Click any chip to copy value to clipboard.</p>
+                </div>
+
+                {/* 2. Dates Identified */}
+                <div className="bg-white rounded-3xl border border-cream-dark p-6 shadow-warm space-y-4 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between pb-3 border-b border-cream-dark/60 mb-3">
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-forest flex items-center gap-2">
+                        <Calendar className="w-4 h-4 text-kiwi" />
+                        Extracted Dates ({genericData.entities.dates.length})
+                      </span>
+                    </div>
+                    {genericData.entities.dates.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {genericData.entities.dates.map((d, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => copyToClipboard(d, `date-${idx}`)}
+                            className="px-3 py-1.5 rounded-xl bg-kiwi/10 border border-kiwi/30 text-kiwi font-bold text-xs hover:scale-105 transition-all flex items-center gap-1.5 shadow-sm"
+                          >
+                            <span>{d}</span>
+                            {copiedIndex === `date-${idx}` ? (
+                              <Check className="w-3.5 h-3.5 text-kiwi" />
+                            ) : (
+                              <Copy className="w-3 h-3 text-kiwi/70" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs font-medium text-forest/60 italic">No date strings recognized.</p>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-forest/50 border-t border-cream-dark/40 pt-2">Click to copy date string.</p>
+                </div>
+
+                {/* 3. Reference Identifiers (Invoice #, Serial #, GSTIN) */}
+                <div className="bg-white rounded-3xl border border-cream-dark p-6 shadow-warm space-y-4 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between pb-3 border-b border-cream-dark/60 mb-3">
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-forest flex items-center gap-2">
+                        <Hash className="w-4 h-4 text-indigo-600" />
+                        Identifiers & Codes ({genericData.entities.identifiers.length})
+                      </span>
+                    </div>
+                    {genericData.entities.identifiers.length > 0 ? (
+                      <div className="space-y-1.5">
+                        {genericData.entities.identifiers.map((idStr, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => copyToClipboard(idStr, `id-${idx}`)}
+                            className="w-full text-left px-3 py-1.5 rounded-xl bg-cream-light border border-cream-dark text-forest font-semibold text-xs hover:bg-cream-dark/40 transition-colors flex items-center justify-between"
+                          >
+                            <span className="truncate">{idStr}</span>
+                            {copiedIndex === `id-${idx}` ? (
+                              <Check className="w-3.5 h-3.5 text-kiwi shrink-0" />
+                            ) : (
+                              <Copy className="w-3 h-3 text-forest/60 shrink-0" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs font-medium text-forest/60 italic">No invoice or serial reference IDs detected.</p>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-forest/50 border-t border-cream-dark/40 pt-2">Click identifier line to copy.</p>
+                </div>
+
+                {/* 4. Contact Information */}
+                <div className="bg-white rounded-3xl border border-cream-dark p-6 shadow-warm space-y-4 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between pb-3 border-b border-cream-dark/60 mb-3">
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-forest flex items-center gap-2">
+                        <Phone className="w-4 h-4 text-forest" />
+                        Contacts & Web ({genericData.entities.contacts.length})
+                      </span>
+                    </div>
+                    {genericData.entities.contacts.length > 0 ? (
+                      <div className="space-y-1.5">
+                        {genericData.entities.contacts.map((cStr, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => copyToClipboard(cStr, `contact-${idx}`)}
+                            className="w-full text-left px-3 py-1.5 rounded-xl bg-cream-light border border-cream-dark text-forest font-semibold text-xs hover:bg-cream-dark/40 transition-colors flex items-center justify-between"
+                          >
+                            <span className="truncate">{cStr}</span>
+                            {copiedIndex === `contact-${idx}` ? (
+                              <Check className="w-3.5 h-3.5 text-kiwi shrink-0" />
+                            ) : (
+                              <Copy className="w-3 h-3 text-forest/60 shrink-0" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs font-medium text-forest/60 italic">No email addresses or phone numbers found.</p>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-forest/50 border-t border-cream-dark/40 pt-2">Click contact line to copy.</p>
+                </div>
+
+                {/* 5. Recognized Organizations */}
+                <div className="bg-white rounded-3xl border border-cream-dark p-6 shadow-warm space-y-4 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between pb-3 border-b border-cream-dark/60 mb-3">
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-forest flex items-center gap-2">
+                        <Building className="w-4 h-4 text-forest" />
+                        Organizations & Vendors ({genericData.entities.organizations.length})
+                      </span>
+                    </div>
+                    {genericData.entities.organizations.length > 0 ? (
+                      <div className="space-y-1.5">
+                        {genericData.entities.organizations.map((org, idx) => (
+                          <div key={idx} className="px-3 py-2 rounded-xl bg-cream-light/80 border border-cream-dark text-forest font-bold text-xs truncate">
+                            🏢 {org}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs font-medium text-forest/60 italic">No store or company names detected.</p>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-forest/50 border-t border-cream-dark/40 pt-2">Identified vendor candidates.</p>
+                </div>
+
+                {/* 6. Product Line Items */}
+                <div className="bg-white rounded-3xl border border-cream-dark p-6 shadow-warm space-y-4 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between pb-3 border-b border-cream-dark/60 mb-3">
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-forest flex items-center gap-2">
+                        <Package className="w-4 h-4 text-forest" />
+                        Line Items ({genericData.entities.products.length})
+                      </span>
+                    </div>
+                    {genericData.entities.products.length > 0 ? (
+                      <div className="space-y-1.5">
+                        {genericData.entities.products.map((item, idx) => (
+                          <div key={idx} className="px-3 py-1.5 rounded-xl bg-cream-light border border-cream-dark text-forest font-semibold text-xs truncate">
+                            📦 {item}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs font-medium text-forest/60 italic">No line items recognized.</p>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-forest/50 border-t border-cream-dark/40 pt-2">Recognized item descriptions.</p>
+                </div>
+              </div>
+
+              {/* Full Raw Text Inspector with Search */}
+              <div className="bg-white rounded-3xl border border-cream-dark p-6 shadow-warm space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cream-dark/60 pb-4">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-carrot" />
+                    <h3 className="text-base font-extrabold text-forest">Full Raw Text Inspector</h3>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-forest/50 absolute left-3 top-2.5" />
+                      <input
+                        type="text"
+                        placeholder="Search inside raw text..."
+                        value={genericSearchQuery}
+                        onChange={(e) => setGenericSearchQuery(e.target.value)}
+                        className="pl-9 pr-3 py-1.5 text-xs bg-cream-light border border-cream-dark rounded-xl text-forest focus:outline-none focus:ring-2 focus:ring-forest w-56"
+                      />
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={Copy}
+                      onClick={() => copyToClipboard(genericData.rawText, 'full-raw')}
+                    >
+                      {copiedIndex === 'full-raw' ? 'Copied!' : 'Copy Text'}
+                    </Button>
+                  </div>
+                </div>
+
+                <pre className="text-xs font-mono text-forest/90 bg-cream-light/60 p-4 rounded-2xl border border-cream-dark max-h-72 overflow-y-auto whitespace-pre-wrap leading-relaxed">
+                  {genericSearchQuery
+                    ? genericData.rawText
+                        .split('\n')
+                        .filter((line) => line.toLowerCase().includes(genericSearchQuery.toLowerCase()))
+                        .join('\n') || 'No matching lines found.'
+                    : genericData.rawText}
+                </pre>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 3 - MODE B: WARRANTY OCR REVIEW FORM */}
+          {step === 'review' && ocrMode === 'warranty' && (
             <div className="space-y-6">
               {/* Top Hero Document Scan Summary Info Box */}
               <div className="bg-white rounded-3xl border border-cream-dark p-5 sm:p-6 shadow-warm space-y-4">
@@ -378,9 +777,18 @@ export default function UploadBillPage() {
                     </div>
                   </div>
 
-                  <Button variant="ghost" size="sm" icon={RotateCcw} onClick={handleReset}>
-                    Scan New Document
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button variant="ghost" size="sm" icon={RotateCcw} onClick={handleReset}>
+                      Scan New
+                    </Button>
+                    <button
+                      onClick={handleStartGenericOCR}
+                      className="px-3.5 py-1.5 rounded-xl bg-indigo-100 hover:bg-indigo-200 text-indigo-900 font-bold text-xs transition-colors flex items-center gap-1.5"
+                    >
+                      <Scan className="w-3.5 h-3.5 text-indigo-700" />
+                      Switch to Generic OCR
+                    </button>
+                  </div>
                 </div>
 
                 {/* 4 DYNAMIC EXTRACTED INFO BOXES */}
