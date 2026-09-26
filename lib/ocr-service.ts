@@ -16,14 +16,18 @@ export async function extractWarrantyDataFromImage(
 
   if (onProgress) onProgress('Preparing document...', 0.1);
 
+  let extractionMethod: 'PDF Direct Text' | 'Tesseract.js Engine' = 'Tesseract.js Engine';
+
   try {
     if (isPdf) {
       if (onProgress) onProgress('Parsing PDF text content...', 0.2);
       // Attempt 1: Extract embedded text directly from PDF
       rawText = await extractTextFromPdfFile(file);
 
-      // Attempt 2: If PDF has no embedded text (scanned PDF), render page 1 to canvas and OCR it
-      if (!rawText || rawText.trim().length < 20) {
+      if (rawText && rawText.trim().length >= 20) {
+        extractionMethod = 'PDF Direct Text';
+      } else {
+        // Attempt 2: If PDF has no embedded text (scanned PDF), render page 1 to canvas and OCR it
         if (onProgress) onProgress('Rendering scanned PDF page to high-res image...', 0.4);
         const canvas = await renderPdfPageToCanvas(file);
         if (canvas) {
@@ -48,6 +52,7 @@ export async function extractWarrantyDataFromImage(
   // Parse extracted raw text using intelligent regular expressions & pattern matching
   const parsed = parseTextToWarrantyResult(rawText, file.name);
   parsed.rawText = rawText.trim();
+  parsed.extractionMethod = extractionMethod;
 
   if (onProgress) onProgress('Complete', 1.0);
 
@@ -468,6 +473,16 @@ function parseTextToWarrantyResult(text: string, fileName: string): OCRResult {
 
   const isFallback = text.trim().length === 0;
 
+  const fieldsExtracted = {
+    productName: !isFallback && productName.length > 0 && !productName.toLowerCase().includes('product'),
+    brand: !isFallback && detectedBrand !== 'Generic',
+    serialNumber: !isFallback && serialNumber.length > 0,
+    purchaseDate: !isFallback && purchaseDate.length > 0,
+    price: !isFallback && price > 0,
+    invoiceNumber: !isFallback && invoiceNumber.length > 0,
+    vendor: !isFallback && detectedVendor !== 'Official Store',
+  };
+
   return {
     productName,
     brand: detectedBrand,
@@ -478,6 +493,7 @@ function parseTextToWarrantyResult(text: string, fileName: string): OCRResult {
     vendor: detectedVendor,
     warrantyPeriod,
     isFallback,
+    fieldsExtracted,
   };
 }
 

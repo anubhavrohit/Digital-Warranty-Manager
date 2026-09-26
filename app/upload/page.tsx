@@ -24,6 +24,13 @@ import {
   ShieldCheck,
   ChevronDown,
   ChevronUp,
+  Package,
+  Tag,
+  Calendar,
+  Store,
+  FileCheck,
+  Eye,
+  Info,
 } from 'lucide-react';
 
 export default function UploadBillPage() {
@@ -205,6 +212,11 @@ export default function UploadBillPage() {
     }
   };
 
+  // Helper to count how many fields were detected
+  const extractedCount = extractedData?.fieldsExtracted
+    ? Object.values(extractedData.fieldsExtracted).filter(Boolean).length
+    : 0;
+
   return (
     <div className="min-h-screen bg-cream flex font-sans">
       <div className="hidden lg:block">
@@ -226,7 +238,7 @@ export default function UploadBillPage() {
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         <Topbar onOpenMobileMenu={() => setMobileMenuOpen(true)} />
 
-        <main className="p-4 sm:p-6 lg:p-8 space-y-8 max-w-4xl mx-auto w-full">
+        <main className="p-4 sm:p-6 lg:p-8 space-y-8 max-w-6xl mx-auto w-full">
           <div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sunshine-light border border-sunshine/60 text-forest text-xs font-bold mb-2">
               <Zap className="w-3.5 h-3.5 text-carrot" />
@@ -275,7 +287,7 @@ export default function UploadBillPage() {
 
           {/* STEP 1: Upload Area */}
           {step === 'upload' && (
-            <div className="space-y-6">
+            <div className="space-y-6 max-w-3xl mx-auto">
               {errors.form && (
                 <div className="p-3 rounded-xl bg-tomato-light border border-tomato/30 text-tomato text-xs font-semibold flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0" />
@@ -300,7 +312,7 @@ export default function UploadBillPage() {
 
           {/* STEP 2: Scanning Loading Animation with Real Progress Bar */}
           {step === 'scanning' && (
-            <div className="bg-white rounded-3xl border border-cream-dark p-8 sm:p-12 text-center space-y-6 shadow-2xl">
+            <div className="bg-white rounded-3xl border border-cream-dark p-8 sm:p-12 text-center space-y-6 shadow-2xl max-w-2xl mx-auto">
               <div className="relative w-24 h-24 mx-auto flex items-center justify-center">
                 <div className="absolute inset-0 rounded-full border-4 border-cream-dark border-t-carrot animate-spin" />
                 <Zap className="w-10 h-10 text-carrot animate-pulse" />
@@ -334,176 +346,394 @@ export default function UploadBillPage() {
             </div>
           )}
 
-          {/* STEP 3: Review Extracted Information & Confirmation */}
+          {/* STEP 3: Dynamic Extracted Info Boxes & Form Confirmation */}
           {step === 'review' && (
             <div className="space-y-6">
-              {/* Review Required Banner */}
-              <div className="bg-sunshine-light border border-sunshine/80 p-4 rounded-2xl flex items-center justify-between gap-3 shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-sunshine text-forest shrink-0">
-                    <CheckCircle2 className="w-6 h-6" />
+              {/* Top Hero Document Scan Summary Info Box */}
+              <div className="bg-white rounded-3xl border border-cream-dark p-5 sm:p-6 shadow-warm space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-cream-dark/60 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 rounded-2xl bg-forest text-sunshine shrink-0 shadow-sm">
+                      <FileText className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-bold text-forest truncate max-w-xs sm:max-w-md">
+                          {selectedFile?.name || 'Uploaded Document'}
+                        </h3>
+                        {extractedData?.extractionMethod === 'PDF Direct Text' ? (
+                          <span className="px-2 py-0.5 rounded-full bg-kiwi/15 border border-kiwi/30 text-kiwi text-[10px] font-bold">
+                            ✨ PDF Native Text
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full bg-carrot/15 border border-carrot/30 text-carrot text-[10px] font-bold">
+                            ⚡ Tesseract Neural OCR
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-forest/60 mt-0.5">
+                        {selectedFile?.size ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB` : ''} &bull;{' '}
+                        {extractedCount > 0 ? `${extractedCount} of 7 key fields auto-extracted` : 'Standard defaults pre-filled'}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-forest">
-                      Review Extracted Information Before Saving
-                    </h4>
-                    <p className="text-xs text-forest/80">
-                      {extractedData?.isFallback
-                        ? 'Low OCR text confidence detected. Standard warranty defaults have been pre-filled for your review.'
-                        : 'OCR engine has successfully scanned your bill. Please verify or edit any fields before saving.'}
-                    </p>
+
+                  <Button variant="ghost" size="sm" icon={RotateCcw} onClick={handleReset}>
+                    Scan New Document
+                  </Button>
+                </div>
+
+                {/* 4 DYNAMIC EXTRACTED INFO BOXES */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
+                  {/* Info Box 1: Product & Brand */}
+                  <div className="bg-cream-light/60 p-4 rounded-2xl border border-cream-dark/70 space-y-2 relative overflow-hidden group hover:border-forest/40 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-forest/70 flex items-center gap-1.5">
+                        <Package className="w-3.5 h-3.5 text-forest" />
+                        Scanned Product
+                      </span>
+                      {extractedData?.fieldsExtracted?.productName ? (
+                        <span className="px-2 py-0.5 rounded-full bg-kiwi/15 border border-kiwi/30 text-kiwi text-[9px] font-bold">
+                          Auto-Detected
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full bg-cream-dark text-forest/70 text-[9px] font-bold">
+                          Filename Derived
+                        </span>
+                      )}
+                    </div>
+                    <div className="font-extrabold text-forest text-sm truncate">
+                      {productName || 'Unknown Item'}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-forest/70 truncate">
+                      <span>Brand: {brand || 'Generic'}</span>
+                      <span>&bull;</span>
+                      <span className="text-carrot">{category}</span>
+                    </div>
+                  </div>
+
+                  {/* Info Box 2: Price */}
+                  <div className="bg-cream-light/60 p-4 rounded-2xl border border-cream-dark/70 space-y-2 relative overflow-hidden group hover:border-forest/40 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-forest/70 flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-carrot" />
+                        Invoice Total
+                      </span>
+                      {extractedData?.fieldsExtracted?.price ? (
+                        <span className="px-2 py-0.5 rounded-full bg-kiwi/15 border border-kiwi/30 text-kiwi text-[9px] font-bold">
+                          Extracted Price
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full bg-sunshine/30 border border-sunshine text-forest text-[9px] font-bold">
+                          Check Amount
+                        </span>
+                      )}
+                    </div>
+                    <div className="font-extrabold text-forest text-base">
+                      {price && parseFloat(price) > 0 ? `₹${parseFloat(price).toLocaleString('en-IN')}` : '₹0 (Enter Price)'}
+                    </div>
+                    <div className="text-[11px] font-semibold text-forest/60">
+                      {price && parseFloat(price) > 0 ? 'Verified from receipt amount' : 'Please enter actual price'}
+                    </div>
+                  </div>
+
+                  {/* Info Box 3: Dates */}
+                  <div className="bg-cream-light/60 p-4 rounded-2xl border border-cream-dark/70 space-y-2 relative overflow-hidden group hover:border-forest/40 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-forest/70 flex items-center gap-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-kiwi" />
+                        Dates & Expiry
+                      </span>
+                      {extractedData?.fieldsExtracted?.purchaseDate ? (
+                        <span className="px-2 py-0.5 rounded-full bg-kiwi/15 border border-kiwi/30 text-kiwi text-[9px] font-bold">
+                          Date Detected
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full bg-cream-dark text-forest/70 text-[9px] font-bold">
+                          Today&apos;s Date
+                        </span>
+                      )}
+                    </div>
+                    <div className="font-extrabold text-forest text-xs space-y-0.5">
+                      <div>Purchased: <span className="text-forest/80 font-semibold">{purchaseDate || 'N/A'}</span></div>
+                      <div>Expires: <span className="text-kiwi font-bold">{warrantyEndDate || 'N/A'}</span></div>
+                    </div>
+                    <div className="text-[11px] font-semibold text-forest/60 truncate">
+                      {notes.replace('OCR Extracted ', '') || '1 Year Coverage'}
+                    </div>
+                  </div>
+
+                  {/* Info Box 4: Vendor & Identifiers */}
+                  <div className="bg-cream-light/60 p-4 rounded-2xl border border-cream-dark/70 space-y-2 relative overflow-hidden group hover:border-forest/40 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-forest/70 flex items-center gap-1.5">
+                        <Store className="w-3.5 h-3.5 text-forest" />
+                        Vendor & Ref
+                      </span>
+                      {extractedData?.fieldsExtracted?.vendor ? (
+                        <span className="px-2 py-0.5 rounded-full bg-kiwi/15 border border-kiwi/30 text-kiwi text-[9px] font-bold">
+                          Store Detected
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full bg-cream-dark text-forest/70 text-[9px] font-bold">
+                          Store Review
+                        </span>
+                      )}
+                    </div>
+                    <div className="font-extrabold text-forest text-xs truncate">
+                      {vendor || 'Official Store'}
+                    </div>
+                    <div className="text-[11px] font-semibold text-forest/70 space-y-0.5 truncate">
+                      <div>Inv #: {invoiceNumber || 'N/A'}</div>
+                      <div>S/N: {serialNumber || 'N/A'}</div>
+                    </div>
                   </div>
                 </div>
-                <Button variant="ghost" size="sm" icon={RotateCcw} onClick={handleReset}>
-                  Try Again
-                </Button>
               </div>
 
-              {/* Form with pre-populated extracted fields */}
-              <div className="bg-white rounded-3xl border border-cream-dark p-6 sm:p-8 shadow-warm space-y-6">
-                {errors.form && (
-                  <div className="p-3 rounded-xl bg-tomato-light border border-tomato/30 text-tomato text-xs font-semibold flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span>{errors.form}</span>
-                  </div>
-                )}
-
-                <form onSubmit={handleSaveWarranty} className="space-y-6">
-                  <div>
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-forest border-b border-cream-dark/60 pb-2 mb-4">
-                      Product Details
+              {/* Main Content Layout: Left side Document Preview, Right side Form */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                {/* Left Column: Document File Card & Raw Text */}
+                <div className="lg:col-span-4 space-y-6">
+                  <div className="bg-white rounded-3xl border border-cream-dark p-5 shadow-warm space-y-4">
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-forest border-b border-cream-dark/60 pb-2 flex items-center justify-between">
+                      <span>Scanned Document</span>
+                      <Eye className="w-4 h-4 text-forest/60" />
                     </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <Input
-                        label="Product Name"
-                        value={productName}
-                        onChange={(e) => setProductName(e.target.value)}
-                        error={errors.productName}
-                        required
-                      />
 
-                      <Input
-                        label="Brand / Manufacturer"
-                        value={brand}
-                        onChange={(e) => setBrand(e.target.value)}
-                        error={errors.brand}
-                        required
-                      />
-
-                      <Select
-                        label="Category"
-                        options={categoryOptions}
-                        value={category}
-                        onChange={(e) => setCategory(e.target.value as ProductCategory)}
-                        required
-                      />
-
-                      <Input
-                        label="Purchase Price (₹ INR)"
-                        type="number"
-                        placeholder="e.g. 14999"
-                        value={price}
-                        onChange={(e) => setPrice(e.target.value)}
-                        error={errors.price}
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-forest border-b border-cream-dark/60 pb-2 mb-4">
-                      Extracted Dates & Identifiers
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <Input
-                        label="Purchase Date"
-                        type="date"
-                        value={purchaseDate}
-                        onChange={(e) => setPurchaseDate(e.target.value)}
-                        error={errors.purchaseDate}
-                        required
-                      />
-
-                      <Input
-                        label="Serial Number (S/N)"
-                        placeholder="e.g. SN-8947201"
-                        value={serialNumber}
-                        onChange={(e) => setSerialNumber(e.target.value)}
-                      />
-
-                      <Input
-                        label="Warranty Expiry Date"
-                        type="date"
-                        value={warrantyEndDate}
-                        onChange={(e) => setWarrantyEndDate(e.target.value)}
-                        error={errors.warrantyEndDate}
-                        required
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                      <Input
-                        label="Store / Vendor"
-                        placeholder="e.g. Amazon India, Croma"
-                        value={vendor}
-                        onChange={(e) => setVendor(e.target.value)}
-                      />
-
-                      <Input
-                        label="Invoice Number"
-                        placeholder="e.g. INV-2024-901"
-                        value={invoiceNumber}
-                        onChange={(e) => setInvoiceNumber(e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-forest/90 mb-1.5">
-                      Extracted Notes / Warranty Terms
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-cream-light/60 border border-cream-dark/80 rounded-xl text-forest text-sm focus:outline-none focus:ring-2 focus:ring-forest"
-                    />
-                  </div>
-
-                  {extractedData?.rawText && (
-                    <div className="bg-cream-light/80 rounded-2xl border border-cream-dark/60 overflow-hidden">
-                      <button
-                        type="button"
-                        onClick={() => setShowRawText(!showRawText)}
-                        className="w-full px-4 py-3 flex items-center justify-between text-xs font-bold text-forest hover:bg-cream-dark/30 transition-colors"
-                      >
-                        <span className="flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-carrot" />
-                          Scanned Raw OCR Text ({extractedData.rawText.length} characters detected)
-                        </span>
-                        {showRawText ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                      </button>
-
-                      {showRawText && (
-                        <div className="p-4 border-t border-cream-dark/60 bg-white">
-                          <pre className="text-[11px] font-mono text-forest/80 bg-cream-light/40 p-3 rounded-xl border border-cream-dark/40 max-h-48 overflow-y-auto whitespace-pre-wrap leading-relaxed">
-                            {extractedData.rawText}
-                          </pre>
+                    <div className="bg-cream-light/80 rounded-2xl border border-cream-dark/60 p-4 flex flex-col items-center text-center justify-center min-h-[180px]">
+                      {imagePreviewUrl ? (
+                        <img
+                          src={imagePreviewUrl}
+                          alt="Receipt Document Preview"
+                          className="max-h-56 rounded-xl object-contain shadow-sm border border-cream-dark"
+                        />
+                      ) : (
+                        <div className="space-y-2 py-6">
+                          <div className="w-16 h-16 rounded-2xl bg-forest text-sunshine mx-auto flex items-center justify-center shadow-sm">
+                            <FileText className="w-8 h-8" />
+                          </div>
+                          <p className="text-xs font-bold text-forest">{selectedFile?.name}</p>
+                          <p className="text-[11px] text-forest/60">PDF Invoice Document</p>
                         </div>
                       )}
                     </div>
-                  )}
 
-                  {/* Buttons */}
-                  <div className="flex items-center justify-end gap-3 pt-4 border-t border-cream-dark/60">
-                    <Button variant="ghost" type="button" onClick={handleReset}>
-                      Cancel
-                    </Button>
-                    <Button variant="primary" size="lg" type="submit" isLoading={isSaving}>
-                      Save Warranty
-                    </Button>
+                    {/* Scanned Raw Text Accordion */}
+                    {extractedData?.rawText && (
+                      <div className="bg-cream-light/60 rounded-2xl border border-cream-dark/60 overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => setShowRawText(!showRawText)}
+                          className="w-full px-4 py-3 flex items-center justify-between text-xs font-bold text-forest hover:bg-cream-dark/30 transition-colors"
+                        >
+                          <span className="flex items-center gap-2">
+                            <FileText className="w-4 h-4 text-carrot" />
+                            Scanned Raw Text ({extractedData.rawText.length} chars)
+                          </span>
+                          {showRawText ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        </button>
+
+                        {showRawText && (
+                          <div className="p-3 border-t border-cream-dark/60 bg-white">
+                            <pre className="text-[11px] font-mono text-forest/80 bg-cream-light/40 p-3 rounded-xl border border-cream-dark/40 max-h-52 overflow-y-auto whitespace-pre-wrap leading-relaxed">
+                              {extractedData.rawText}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                </form>
+                </div>
+
+                {/* Right Column: Editable Form Pre-populated by OCR */}
+                <div className="lg:col-span-8">
+                  <div className="bg-white rounded-3xl border border-cream-dark p-6 sm:p-8 shadow-warm space-y-6">
+                    {errors.form && (
+                      <div className="p-3 rounded-xl bg-tomato-light border border-tomato/30 text-tomato text-xs font-semibold flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        <span>{errors.form}</span>
+                      </div>
+                    )}
+
+                    <form onSubmit={handleSaveWarranty} className="space-y-6">
+                      <div>
+                        <div className="flex items-center justify-between border-b border-cream-dark/60 pb-2 mb-4">
+                          <h3 className="text-sm font-bold uppercase tracking-wider text-forest">
+                            Product Details
+                          </h3>
+                          <span className="text-[11px] font-bold text-forest/60">
+                            Pre-filled from scanned document
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-bold uppercase tracking-wider text-forest/90">Product Name</span>
+                              {extractedData?.fieldsExtracted?.productName ? (
+                                <span className="text-[10px] font-bold text-kiwi flex items-center gap-1">✨ Auto-Extracted</span>
+                              ) : (
+                                <span className="text-[10px] font-semibold text-forest/60">Filename Derived</span>
+                              )}
+                            </div>
+                            <Input
+                              value={productName}
+                              onChange={(e) => setProductName(e.target.value)}
+                              error={errors.productName}
+                              required
+                            />
+                          </div>
+
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-bold uppercase tracking-wider text-forest/90">Brand / Manufacturer</span>
+                              {extractedData?.fieldsExtracted?.brand ? (
+                                <span className="text-[10px] font-bold text-kiwi flex items-center gap-1">✨ Auto-Extracted</span>
+                              ) : (
+                                <span className="text-[10px] font-semibold text-forest/60">Default</span>
+                              )}
+                            </div>
+                            <Input
+                              value={brand}
+                              onChange={(e) => setBrand(e.target.value)}
+                              error={errors.brand}
+                              required
+                            />
+                          </div>
+
+                          <Select
+                            label="Category"
+                            options={categoryOptions}
+                            value={category}
+                            onChange={(e) => setCategory(e.target.value as ProductCategory)}
+                            required
+                          />
+
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-bold uppercase tracking-wider text-forest/90">Purchase Price (₹ INR)</span>
+                              {extractedData?.fieldsExtracted?.price ? (
+                                <span className="text-[10px] font-bold text-kiwi flex items-center gap-1">✨ Auto-Extracted</span>
+                              ) : (
+                                <span className="text-[10px] font-bold text-carrot flex items-center gap-1">✏️ Enter Amount</span>
+                              )}
+                            </div>
+                            <Input
+                              type="number"
+                              placeholder="e.g. 14999"
+                              value={price}
+                              onChange={(e) => setPrice(e.target.value)}
+                              error={errors.price}
+                              required
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between border-b border-cream-dark/60 pb-2 mb-4">
+                          <h3 className="text-sm font-bold uppercase tracking-wider text-forest">
+                            Extracted Dates & Identifiers
+                          </h3>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-bold uppercase tracking-wider text-forest/90">Purchase Date</span>
+                              {extractedData?.fieldsExtracted?.purchaseDate ? (
+                                <span className="text-[10px] font-bold text-kiwi">✨ Auto-Extracted</span>
+                              ) : null}
+                            </div>
+                            <Input
+                              type="date"
+                              value={purchaseDate}
+                              onChange={(e) => setPurchaseDate(e.target.value)}
+                              error={errors.purchaseDate}
+                              required
+                            />
+                          </div>
+
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-bold uppercase tracking-wider text-forest/90">Serial Number</span>
+                              {extractedData?.fieldsExtracted?.serialNumber ? (
+                                <span className="text-[10px] font-bold text-kiwi">✨ Auto-Extracted</span>
+                              ) : null}
+                            </div>
+                            <Input
+                              placeholder="e.g. SN-8947201"
+                              value={serialNumber}
+                              onChange={(e) => setSerialNumber(e.target.value)}
+                            />
+                          </div>
+
+                          <Input
+                            label="Warranty Expiry Date"
+                            type="date"
+                            value={warrantyEndDate}
+                            onChange={(e) => setWarrantyEndDate(e.target.value)}
+                            error={errors.warrantyEndDate}
+                            required
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-bold uppercase tracking-wider text-forest/90">Store / Vendor</span>
+                              {extractedData?.fieldsExtracted?.vendor ? (
+                                <span className="text-[10px] font-bold text-kiwi">✨ Auto-Extracted</span>
+                              ) : null}
+                            </div>
+                            <Input
+                              placeholder="e.g. Amazon India, Croma"
+                              value={vendor}
+                              onChange={(e) => setVendor(e.target.value)}
+                            />
+                          </div>
+
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-bold uppercase tracking-wider text-forest/90">Invoice Number</span>
+                              {extractedData?.fieldsExtracted?.invoiceNumber ? (
+                                <span className="text-[10px] font-bold text-kiwi">✨ Auto-Extracted</span>
+                              ) : null}
+                            </div>
+                            <Input
+                              placeholder="e.g. INV-2024-901"
+                              value={invoiceNumber}
+                              onChange={(e) => setInvoiceNumber(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-forest/90 mb-1.5">
+                          Extracted Notes / Warranty Terms
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={notes}
+                          onChange={(e) => setNotes(e.target.value)}
+                          className="w-full px-3.5 py-2.5 bg-cream-light/60 border border-cream-dark/80 rounded-xl text-forest text-sm focus:outline-none focus:ring-2 focus:ring-forest font-medium"
+                        />
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex items-center justify-end gap-3 pt-4 border-t border-cream-dark/60">
+                        <Button variant="ghost" type="button" onClick={handleReset}>
+                          Cancel
+                        </Button>
+                        <Button variant="primary" size="lg" type="submit" isLoading={isSaving}>
+                          Confirm & Save Warranty
+                        </Button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
               </div>
             </div>
           )}

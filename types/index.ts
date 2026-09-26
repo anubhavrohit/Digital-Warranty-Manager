@@ -72,6 +72,16 @@ export interface OCRResult {
   warrantyPeriod: string; // e.g. "12 Months" or "2 Years"
   rawText?: string;
   isFallback?: boolean;
+  extractionMethod?: 'PDF Direct Text' | 'Tesseract.js Engine';
+  fieldsExtracted?: {
+    productName: boolean;
+    brand: boolean;
+    serialNumber: boolean;
+    purchaseDate: boolean;
+    price: boolean;
+    invoiceNumber: boolean;
+    vendor: boolean;
+  };
 }
 
 export interface DashboardStats {
