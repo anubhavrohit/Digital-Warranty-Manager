@@ -179,33 +179,30 @@ export default function DashboardPage() {
               <CategoryChart warranties={warranties} />
             </div>
 
-            {/* Seed Demo / Quick Tips Card */}
+            {/* Quick Actions Card */}
             <div className="lg:col-span-4 bg-white rounded-2xl border border-cream-dark/60 p-5 shadow-warm flex flex-col justify-between space-y-4">
               <div>
                 <div className="flex items-center gap-2 text-carrot font-bold text-xs uppercase tracking-wider mb-2">
                   <Sparkles className="w-4 h-4" />
-                  <span>College Presentation Tool</span>
+                  <span>Smart Automation</span>
                 </div>
                 <h3 className="text-base font-bold text-forest mb-1">
-                  Presentation Seed Mode
+                  Instant Bill Scanner
                 </h3>
                 <p className="text-xs text-forest/70 leading-relaxed">
-                  Need sample laptops, fridges, phones and headphones to demonstrate search, filtering and notifications during your demo?
+                  Upload photos of purchase receipts or digital invoices to automatically extract product details, serial numbers, and warranty end dates.
                 </p>
               </div>
 
               <div className="space-y-2 pt-2 border-t border-cream-dark/50">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={seedDemoData}
-                  className="w-full text-xs"
-                >
-                  Reload 5 Sample Products
-                </Button>
                 <Link href="/upload" className="block">
-                  <Button variant="primary" size="sm" className="w-full text-xs">
-                    Try OCR Bill Upload Feature
+                  <Button variant="primary" size="sm" className="w-full text-xs" icon={UploadCloud}>
+                    Scan & Add Bill Document
+                  </Button>
+                </Link>
+                <Link href="/products/add" className="block">
+                  <Button variant="outline" size="sm" className="w-full text-xs" icon={Plus}>
+                    Add Product Form
                   </Button>
                 </Link>
               </div>

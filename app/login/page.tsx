@@ -76,29 +76,6 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Demo Account Quick CTA Banner */}
-        <div className="mb-6 p-3.5 rounded-2xl bg-sunshine-light border border-sunshine/60 text-left">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs font-bold text-forest flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-carrot" />
-              College Demo Mode
-            </span>
-            <span className="text-[10px] font-bold text-forest/70 uppercase">Zero Setup</span>
-          </div>
-          <p className="text-xs text-forest/80 mb-2.5 leading-relaxed">
-            Presenting or testing? Click below to instantly log in with sample product data.
-          </p>
-          <Button
-            type="button"
-            variant="sunshine"
-            size="sm"
-            onClick={handleDemoLogin}
-            className="w-full text-xs shadow-none border border-sunshine/60"
-          >
-            Instant Demo Account Login &rarr;
-          </Button>
-        </div>
-
         {error && (
           <div className="mb-6 p-3 rounded-xl bg-tomato-light border border-tomato/30 text-tomato text-xs font-semibold flex items-center gap-2 animate-fade-in">
             <AlertCircle className="w-4 h-4 shrink-0" />

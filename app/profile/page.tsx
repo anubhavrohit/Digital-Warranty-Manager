@@ -191,22 +191,22 @@ export default function ProfilePage() {
             </Button>
           </div>
 
-          {/* Demo Seed Generator */}
+          {/* Data Management & Cleanup */}
           <div className="bg-sunshine-light rounded-3xl border border-sunshine/80 p-6 sm:p-8 shadow-sm space-y-4">
             <div className="flex items-center gap-2 text-forest font-extrabold text-sm">
               <Sparkles className="w-5 h-5 text-carrot" />
-              <span>College Presentation Seed Tool</span>
+              <span>Vault Data Management</span>
             </div>
 
             {seedSuccess && (
               <div className="p-3 rounded-xl bg-kiwi-light border border-kiwi/30 text-kiwi-dark text-xs font-semibold flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Sample demo products populated into your vault!</span>
+                <span>Sample products populated into your vault!</span>
               </div>
             )}
 
             <p className="text-xs text-forest/80 leading-relaxed max-w-xl">
-              Instantly seed sample warranties (ASUS TUF Laptop, Samsung Refrigerator, iPhone 15 Pro, Sony Headphones, LG Washing Machine) for live project demonstration.
+              Easily clear out sample items to manage your real personal product warranties, or load sample entries to explore features.
             </p>
 
             <div className="flex flex-wrap items-center gap-3 pt-2">

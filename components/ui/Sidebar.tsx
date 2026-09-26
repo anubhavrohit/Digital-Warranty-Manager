@@ -65,13 +65,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
           </div>
         </Link>
 
-        {isDemoMode && (
-          <div className="mx-2 mb-4 px-3 py-2 rounded-xl bg-sunshine-light border border-sunshine/50 flex items-center gap-2 text-xs font-bold text-forest">
-            <Sparkles className="w-4 h-4 text-carrot shrink-0 animate-pulse" />
-            <span>Demo Mode Active</span>
-          </div>
-        )}
-
         {/* Navigation Items */}
         <nav className="space-y-1">
           {navItems.map((item) => {

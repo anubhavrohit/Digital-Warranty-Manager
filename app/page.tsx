@@ -406,7 +406,7 @@ export default function LandingPage() {
             </div>
 
             <p className="text-xs text-cream-light/70 text-center md:text-left">
-              College Mini-Project SaaS &bull; Digital Product & Warranty Management System
+              Digital Product & Warranty Vault &bull; Smart Invoice Management System
             </p>
 
             <div className="flex items-center gap-6 text-xs text-cream-light/80">
