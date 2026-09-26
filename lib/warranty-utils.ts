@@ -73,15 +73,27 @@ export function getRemainingDays(expiryDateStr: string): string {
 }
 
 /**
- * Formats a number as INR Currency (e.g. ₹1,24,500)
+ * Formats a number into localized currency (e.g. ₹1,24,500, $1,500, €1,200)
  */
-export function formatCurrency(amount: number): string {
+export function formatCurrency(amount: number, currencyCode: string = 'INR'): string {
   if (amount === undefined || amount === null || isNaN(amount)) return '₹0';
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(amount);
+  const code = currencyCode || 'INR';
+  const localeMap: Record<string, string> = {
+    INR: 'en-IN',
+    USD: 'en-US',
+    EUR: 'de-DE',
+    GBP: 'en-GB',
+  };
+  const locale = localeMap[code] || 'en-IN';
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: code,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  } catch (e) {
+    return `₹${amount}`;
+  }
 }
 
 /**

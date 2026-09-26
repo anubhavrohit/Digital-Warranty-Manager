@@ -11,12 +11,22 @@ export type ProductCategory =
   | 'Home'
   | 'Other';
 
+export interface NotificationPreferences {
+  emailAlerts: boolean;
+  browserAlerts: boolean;
+  expiryNoticeDays: number;
+}
+
 export interface UserProfile {
   uid: string;
   name: string;
   email: string;
   createdAt: string;
   password?: string;
+  avatarUrl?: string;
+  phone?: string;
+  currency?: string;
+  notificationPrefs?: NotificationPreferences;
 }
 
 export interface WarrantyItem {

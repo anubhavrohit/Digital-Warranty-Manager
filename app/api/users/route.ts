@@ -96,14 +96,26 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { uid, name } = body;
+    const { uid, name, avatarUrl, phone, currency, notificationPrefs, password } = body;
+
+    if (!uid) {
+      return NextResponse.json({ error: 'UID is required' }, { status: 400 });
+    }
 
     const db = readDB();
     const index = db.users.findIndex((u) => u.uid === uid);
     if (index >= 0) {
-      db.users[index].name = name;
+      if (name !== undefined) db.users[index].name = name;
+      if (avatarUrl !== undefined) db.users[index].avatarUrl = avatarUrl;
+      if (phone !== undefined) db.users[index].phone = phone;
+      if (currency !== undefined) db.users[index].currency = currency;
+      if (notificationPrefs !== undefined) db.users[index].notificationPrefs = notificationPrefs;
+      if (password !== undefined) db.users[index].password = password;
+
       writeDB(db);
-      return NextResponse.json({ user: db.users[index] });
+
+      const { password: _, ...cleanProfile } = db.users[index];
+      return NextResponse.json({ user: cleanProfile });
     }
 
     return NextResponse.json({ error: 'User not found' }, { status: 404 });

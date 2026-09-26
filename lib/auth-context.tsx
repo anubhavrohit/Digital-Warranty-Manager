@@ -37,6 +37,8 @@ interface AuthContextType {
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   updateProfileName: (name: string) => Promise<void>;
+  updateUserProfile: (data: Partial<UserProfile>) => Promise<void>;
+  changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
   addWarranty: (warrantyData: Omit<WarrantyItem, 'id' | 'userId' | 'createdAt' | 'updatedAt'>) => Promise<WarrantyItem>;
   updateWarranty: (id: string, warrantyData: Partial<WarrantyItem>) => Promise<void>;
   deleteWarranty: (id: string) => Promise<void>;
@@ -44,6 +46,8 @@ interface AuthContextType {
   deleteDocument: (id: string) => Promise<void>;
   seedDemoData: () => void;
   clearAllData: () => void;
+  importBackupData: (backupPayload: { warranties?: WarrantyItem[]; documents?: DocumentItem[] }) => Promise<{ warrantiesAdded: number; docsAdded: number }>;
+  deleteAccount: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -357,21 +361,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateProfileName = async (name: string) => {
     if (!user) return;
-    const updated = { ...user, name };
+    await updateUserProfile({ name });
+  };
+
+  const updateUserProfile = async (data: Partial<UserProfile>) => {
+    if (!user) return;
+    const updated = { ...user, ...data };
     setUser(updated);
 
     try {
       await fetch('/api/users', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uid: user.uid, name }),
+        body: JSON.stringify({ uid: user.uid, ...data }),
       });
     } catch (e) {}
 
     if (isFirebaseConfigured && auth && !isDemoMode) {
-      await updateDoc(doc(db, 'users', user.uid), { name });
+      try {
+        await updateDoc(doc(db, 'users', user.uid), data);
+      } catch (e) {}
+    }
+
+    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updated));
+  };
+
+  const changePassword = async (oldPassword: string, newPassword: string) => {
+    if (!user) return;
+    if (isFirebaseConfigured && auth && auth.currentUser && !isDemoMode) {
+      const { updatePassword, EmailAuthProvider, reauthenticateWithCredential } = await import('firebase/auth');
+      if (user.email) {
+        const credential = EmailAuthProvider.credential(user.email, oldPassword);
+        await reauthenticateWithCredential(auth.currentUser, credential);
+        await updatePassword(auth.currentUser, newPassword);
+      }
     } else {
-      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updated));
+      const res = await fetch('/api/users', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid: user.uid, password: newPassword }),
+      });
+      if (!res.ok) {
+        const resData = await res.json();
+        throw new Error(resData.error || 'Failed to update password');
+      }
     }
   };
 
@@ -562,6 +595,81 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
+  const importBackupData = async (backupPayload: { warranties?: WarrantyItem[]; documents?: DocumentItem[] }) => {
+    if (!user) throw new Error('User not authenticated');
+
+    const incomingWarranties = backupPayload.warranties || [];
+    const incomingDocs = backupPayload.documents || [];
+
+    let wAdded = 0;
+    let dAdded = 0;
+
+    const existingWIds = new Set(warranties.map((w) => w.id));
+    const newWarrantiesList = [...warranties];
+
+    for (const item of incomingWarranties) {
+      const cleanId = item.id || 'w-' + Date.now() + Math.random().toString(36).substring(2, 7);
+      if (!existingWIds.has(cleanId)) {
+        const newItem: WarrantyItem = { ...item, id: cleanId, userId: user.uid };
+        newWarrantiesList.unshift(newItem);
+        existingWIds.add(cleanId);
+        wAdded++;
+
+        fetch('/api/warranties', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newItem),
+        }).catch(() => {});
+
+        if (isFirebaseConfigured && auth && !isDemoMode) {
+          addDoc(collection(db, 'warranties'), newItem).catch(() => {});
+        }
+      }
+    }
+
+    setWarranties(newWarrantiesList);
+    localStorage.setItem(getWarrantiesStorageKey(user.uid), JSON.stringify(newWarrantiesList));
+
+    const existingDIds = new Set(documents.map((d) => d.id));
+    const newDocsList = [...documents];
+
+    for (const docItem of incomingDocs) {
+      const cleanId = docItem.id || 'doc-' + Date.now() + Math.random().toString(36).substring(2, 7);
+      if (!existingDIds.has(cleanId)) {
+        const newDoc: DocumentItem = { ...docItem, id: cleanId, userId: user.uid };
+        newDocsList.unshift(newDoc);
+        existingDIds.add(cleanId);
+        dAdded++;
+
+        fetch('/api/documents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newDoc),
+        }).catch(() => {});
+
+        if (isFirebaseConfigured && auth && !isDemoMode) {
+          addDoc(collection(db, 'documents'), newDoc).catch(() => {});
+        }
+      }
+    }
+
+    setDocuments(newDocsList);
+    localStorage.setItem(getDocsStorageKey(user.uid), JSON.stringify(newDocsList));
+
+    return { warrantiesAdded: wAdded, docsAdded: dAdded };
+  };
+
+  const deleteAccount = async () => {
+    if (!user) return;
+    clearAllData();
+    if (isFirebaseConfigured && auth && auth.currentUser && !isDemoMode) {
+      try {
+        await auth.currentUser.delete();
+      } catch (e) {}
+    }
+    await logout();
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -576,6 +684,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout,
         resetPassword,
         updateProfileName,
+        updateUserProfile,
+        changePassword,
         addWarranty,
         updateWarranty,
         deleteWarranty,
@@ -583,6 +693,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         deleteDocument,
         seedDemoData,
         clearAllData,
+        importBackupData,
+        deleteAccount,
       }}
     >
       {children}
