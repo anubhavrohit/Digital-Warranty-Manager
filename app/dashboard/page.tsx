@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { calculateDashboardStats, getWarrantyStatus } from '@/lib/warranty-utils';
+import { calculateDashboardStats, getWarrantyStatus, formatCurrency } from '@/lib/warranty-utils';
 import { Sidebar } from '@/components/ui/Sidebar';
 import { Topbar } from '@/components/ui/Topbar';
 import { StatCard } from '@/components/ui/StatCard';
@@ -20,13 +20,11 @@ import {
   IndianRupee,
   Plus,
   UploadCloud,
-  ArrowRight,
-  ShieldCheck,
   Sparkles,
 } from 'lucide-react';
 
 export default function DashboardPage() {
-  const { user, loading, warranties, deleteWarranty, seedDemoData } = useAuth();
+  const { user, loading, warranties, deleteWarranty } = useAuth();
   const router = useRouter();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -40,10 +38,10 @@ export default function DashboardPage() {
 
   if (loading || !user) {
     return (
-      <div className="min-h-screen bg-cream flex items-center justify-center">
+      <div className="min-h-screen bg-cream dark:bg-slate-950 flex items-center justify-center">
         <div className="text-center space-y-3">
-          <div className="w-12 h-12 border-4 border-forest border-t-carrot rounded-full animate-spin mx-auto" />
-          <p className="text-sm font-bold text-forest">Loading Warranty Vault...</p>
+          <div className="w-12 h-12 border-4 border-forest dark:border-sunshine border-t-carrot rounded-full animate-spin mx-auto" />
+          <p className="text-sm font-bold text-forest dark:text-slate-200">Loading Warranty Vault...</p>
         </div>
       </div>
     );
@@ -63,7 +61,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-cream flex font-sans">
+    <div className="min-h-screen bg-cream dark:bg-slate-950 flex font-sans">
       {/* Sidebar Desktop */}
       <div className="hidden lg:block">
         <Sidebar />
@@ -88,20 +86,20 @@ export default function DashboardPage() {
 
         <main className="p-4 sm:p-6 lg:p-8 space-y-8 max-w-7xl mx-auto w-full">
           {/* Dashboard Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-cream-dark shadow-warm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-3xl border border-cream-dark dark:border-slate-800 shadow-warm">
             <div>
-              <div className="flex items-center gap-2 mb-1">
-                <h1 className="text-2xl sm:text-3xl font-extrabold text-forest tracking-tight">
+              <div className="flex items-center gap-2.5 mb-1.5">
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-forest dark:text-slate-100 tracking-tight">
                   Welcome back, {user.name}!
                 </h1>
-                <span className="w-2.5 h-2.5 rounded-full bg-kiwi animate-pulse" />
+                <span className="w-2.5 h-2.5 rounded-full bg-kiwi animate-pulse shrink-0" />
               </div>
-              <p className="text-xs sm:text-sm text-forest/70">
-                You have <strong className="text-forest">{stats.activeWarranties} active warranties</strong> currently protected.
+              <p className="text-xs sm:text-sm text-forest/70 dark:text-slate-400">
+                You have <strong className="text-forest dark:text-slate-200">{stats.activeWarranties} active warranties</strong> currently protected in your digital vault.
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 shrink-0">
               <Link href="/upload">
                 <Button variant="primary" size="sm" icon={UploadCloud}>
                   Upload & Scan Bill
@@ -117,21 +115,21 @@ export default function DashboardPage() {
 
           {/* Expiring Alert Banner if any */}
           {expiringWarranties.length > 0 && (
-            <div className="bg-sunshine-light border border-sunshine/70 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in shadow-sm">
+            <div className="bg-sunshine-light dark:bg-amber-950/40 border border-sunshine/70 dark:border-amber-800/50 p-4 sm:p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in shadow-sm">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-sunshine text-forest shrink-0">
+                <div className="p-2.5 rounded-xl bg-sunshine text-forest shrink-0">
                   <Clock className="w-5 h-5 text-forest" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-forest">
+                  <h4 className="text-sm font-bold text-forest dark:text-amber-200">
                     {expiringWarranties.length} Warranty{expiringWarranties.length > 1 ? 's' : ''} Expiring Soon!
                   </h4>
-                  <p className="text-xs text-forest/80">
+                  <p className="text-xs text-forest/80 dark:text-amber-300/80 mt-0.5">
                     Action required within the next 30 days to avoid expired coverage.
                   </p>
                 </div>
               </div>
-              <Link href="/expiring">
+              <Link href="/expiring" className="shrink-0">
                 <Button variant="sunshine" size="sm">
                   View Expiring Products &rarr;
                 </Button>
@@ -167,34 +165,34 @@ export default function DashboardPage() {
             />
             <StatCard
               title="Purchase Value"
-              value={`₹${stats.totalPurchaseValue.toLocaleString('en-IN')}`}
+              value={formatCurrency(stats.totalPurchaseValue, user?.currency)}
               icon={IndianRupee}
               variant="carrot"
             />
           </div>
 
           {/* Analytics Chart & Quick Banner */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-8">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+            <div className="lg:col-span-8 flex flex-col">
               <CategoryChart warranties={warranties} />
             </div>
 
             {/* Quick Actions Card */}
-            <div className="lg:col-span-4 bg-white rounded-2xl border border-cream-dark/60 p-5 shadow-warm flex flex-col justify-between space-y-4">
+            <div className="lg:col-span-4 bg-white dark:bg-slate-900 rounded-2xl border border-cream-dark/60 dark:border-slate-800 p-5 sm:p-6 shadow-warm flex flex-col justify-between space-y-4">
               <div>
                 <div className="flex items-center gap-2 text-carrot font-bold text-xs uppercase tracking-wider mb-2">
                   <Sparkles className="w-4 h-4" />
                   <span>Smart Automation</span>
                 </div>
-                <h3 className="text-base font-bold text-forest mb-1">
+                <h3 className="text-base font-bold text-forest dark:text-slate-100 mb-1">
                   Instant Bill Scanner
                 </h3>
-                <p className="text-xs text-forest/70 leading-relaxed">
+                <p className="text-xs text-forest/70 dark:text-slate-400 leading-relaxed">
                   Upload photos of purchase receipts or digital invoices to automatically extract product details, serial numbers, and warranty end dates.
                 </p>
               </div>
 
-              <div className="space-y-2 pt-2 border-t border-cream-dark/50">
+              <div className="space-y-2.5 pt-3 border-t border-cream-dark/50 dark:border-slate-800">
                 <Link href="/upload" className="block">
                   <Button variant="primary" size="sm" className="w-full text-xs" icon={UploadCloud}>
                     Scan & Add Bill Document
@@ -213,8 +211,8 @@ export default function DashboardPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-bold text-forest">Recent Products</h2>
-                <p className="text-xs text-forest/60">Your latest registered warranties and bills</p>
+                <h2 className="text-lg font-bold text-forest dark:text-slate-100">Recent Products</h2>
+                <p className="text-xs text-forest/60 dark:text-slate-400">Your latest registered warranties and bills</p>
               </div>
               <Link href="/products" className="text-xs font-bold text-carrot hover:underline flex items-center gap-1">
                 View All ({warranties.length}) &rarr;
@@ -222,10 +220,10 @@ export default function DashboardPage() {
             </div>
 
             {recentWarranties.length === 0 ? (
-              <div className="bg-white rounded-3xl border border-cream-dark p-12 text-center space-y-4">
-                <Package className="w-12 h-12 text-forest/40 mx-auto" />
-                <h3 className="text-base font-bold text-forest">No Products Added Yet</h3>
-                <p className="text-xs text-forest/70 max-w-sm mx-auto">
+              <div className="bg-white dark:bg-slate-900 rounded-3xl border border-cream-dark dark:border-slate-800 p-12 text-center space-y-4">
+                <Package className="w-12 h-12 text-forest/40 dark:text-slate-500 mx-auto" />
+                <h3 className="text-base font-bold text-forest dark:text-slate-200">No Products Added Yet</h3>
+                <p className="text-xs text-forest/70 dark:text-slate-400 max-w-sm mx-auto">
                   Start by uploading a bill image or manually adding your first product warranty details.
                 </p>
                 <div className="flex justify-center gap-3 pt-2">
@@ -242,7 +240,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
                 {recentWarranties.map((item) => (
                   <WarrantyCard
                     key={item.id}
