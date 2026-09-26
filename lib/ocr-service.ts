@@ -634,21 +634,7 @@ function categorizeGenericOCRText(
 ): GenericOCRResult {
   const fullTextLower = text.toLowerCase();
 
-  // 1. Document Type Classification
-  let documentType: GenericOCRResult['documentType'] = 'General Document';
-  if (fullTextLower.includes('tax invoice') || fullTextLower.includes('bill of supply') || fullTextLower.includes('gstin')) {
-    documentType = 'Tax Invoice';
-  } else if (fullTextLower.includes('cash receipt') || fullTextLower.includes('receipt') || fullTextLower.includes('cash memo')) {
-    documentType = 'Store Receipt';
-  } else if (fullTextLower.includes('warranty') || fullTextLower.includes('guarantee')) {
-    documentType = 'Warranty Card';
-  } else if (fullTextLower.includes('electricity') || fullTextLower.includes('water bill') || fullTextLower.includes('broadband')) {
-    documentType = 'Utility Bill';
-  } else if (fullTextLower.includes('waybill') || fullTextLower.includes('tracking') || fullTextLower.includes('courier')) {
-    documentType = 'Shipping Label';
-  }
-
-  // 2. Extract Prices / Currency Amounts
+  // 1. Extract Prices / Currency Amounts
   const priceMatches = Array.from(
     text.matchAll(/(?:₹|rs\.?|inr|\$|€)\s*([0-9]{1,3}(?:,[0-9]{2,3})*(?:\.[0-9]{2})?|\b[0-9]{3,7}\b(?:\/-)?)/gi)
   );
@@ -658,7 +644,7 @@ function categorizeGenericOCRText(
     if (val.length > 1) pricesSet.add(val);
   }
 
-  // 3. Extract Dates
+  // 2. Extract Dates
   const dateMatches = Array.from(
     text.matchAll(/\b(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4}|\d{4}[\/\.\-]\d{1,2}[\/\.\-]\d{1,2}|\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{2,4})\b/gi)
   );
@@ -667,7 +653,7 @@ function categorizeGenericOCRText(
     datesSet.add(m[0].trim());
   }
 
-  // 4. Extract Identifiers (Invoice #, Serial #, Order ID, GSTIN, HSN, IMEI)
+  // 3. Extract Identifiers (Invoice #, Serial #, Order ID, GSTIN, HSN, IMEI)
   const idMatches = Array.from(
     text.matchAll(/(?:invoice|inv|order|bill|serial|s\/n|sn|gstin|hsn|cin|pan|imei)\s*(?:no|num|number|#)?[:\s]*([a-zA-Z0-9\/-]{4,30})/gi)
   );
@@ -678,7 +664,7 @@ function categorizeGenericOCRText(
     }
   }
 
-  // 5. Extract Contacts (Emails, Phones, Websites)
+  // 4. Extract Contacts (Emails, Phones, Websites)
   const emailMatches = Array.from(text.matchAll(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g));
   const phoneMatches = Array.from(text.matchAll(/\b(?:\+91[\s\-]?)?[6-9]\d{9}\b/g));
   const webMatches = Array.from(text.matchAll(/\b(?:https?:\/\/)?www\.[A-Za-z0-9.\/-]+\b/g));
@@ -687,11 +673,10 @@ function categorizeGenericOCRText(
   for (const m of phoneMatches) contactsSet.add(`Phone: ${m[0]}`);
   for (const m of webMatches) contactsSet.add(`Web: ${m[0]}`);
 
-  // 6. Extract Organizations / Stores
+  // 5. Extract Organizations / Stores
   const orgSet = new Set<string>();
   const lines = text.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
   if (lines.length > 0) {
-    // Check top lines for vendor
     for (let i = 0; i < Math.min(3, lines.length); i++) {
       if (lines[i].length > 3 && lines[i].length < 40 && !lines[i].toLowerCase().includes('invoice')) {
         orgSet.add(lines[i]);
@@ -700,7 +685,7 @@ function categorizeGenericOCRText(
     }
   }
 
-  // 7. Extract Products / Line items
+  // 6. Extract Products / Line items
   const productSet = new Set<string>();
   for (const line of lines) {
     if (
@@ -716,24 +701,102 @@ function categorizeGenericOCRText(
     }
   }
 
+  const entities = {
+    prices: Array.from(pricesSet),
+    dates: Array.from(datesSet),
+    identifiers: Array.from(identifiersSet),
+    contacts: Array.from(contactsSet),
+    products: Array.from(productSet),
+    organizations: Array.from(orgSet),
+  };
+
+  // 7. Advanced Intelligent Document Type Classifier Engine
+  const indicators: string[] = [];
+  let confidence = 70;
+  let documentType: GenericOCRResult['documentType'] = 'General Document';
+
+  const hasGstin = /gstin|gst\s*no|tax\s*id/i.test(text);
+  const hasHsn = /hsn|sac/i.test(text);
+  const hasTaxInvoice = /tax invoice|bill of supply|e-invoice/i.test(text);
+  const hasReceipt = /pos|cash memo|receipt|store receipt|cashier|terminal/i.test(text);
+  const hasWarranty = /warranty|guarantee|warranty card|coverage terms/i.test(text);
+  const hasShipping = /waybill|courier|tracking no|awb|consignee|dispatcher|delivery/i.test(text);
+  const hasUtility = /meter no|consumer no|electricity|kwh|units consumed|broadband|utility/i.test(text);
+  const hasVehicle = /chassis|engine no|job card|registration no|odometer|service invoice/i.test(text);
+  const hasSalary = /basic pay|net pay|hra|pf no|deductions|employee code|payslip/i.test(text);
+  const hasMedical = /rx|patient|doctor|pharmacist|medicine|lab test|hospital/i.test(text);
+  const hasInsurance = /policy no|sum assured|premium|insured name|claim/i.test(text);
+
+  if (hasTaxInvoice || (hasGstin && hasHsn)) {
+    documentType = 'Tax Invoice / E-Bill';
+    confidence = 96;
+    if (hasTaxInvoice) indicators.push('Found Header "Tax Invoice / Bill of Supply"');
+    if (hasGstin) indicators.push('Identified Official GSTIN Tax Identifier');
+    if (hasHsn) indicators.push('Identified HSN/SAC Tax Product Codes');
+  } else if (hasReceipt || (entities.prices.length > 0 && /total|cash|card|change/i.test(text))) {
+    documentType = 'Retail Store Receipt';
+    confidence = 91;
+    if (hasReceipt) indicators.push('Found POS Cash Register Receipt markers');
+    if (entities.prices.length > 0) indicators.push(`Found ${entities.prices.length} price transactions`);
+  } else if (hasWarranty) {
+    documentType = 'Warranty Certificate';
+    confidence = 94;
+    indicators.push('Contains Warranty / Guarantee policy terms');
+  } else if (hasShipping) {
+    documentType = 'Shipping & Delivery Label';
+    confidence = 92;
+    indicators.push('Contains Courier Waybill & Dispatch AWB Tracking');
+  } else if (hasUtility) {
+    documentType = 'Utility & Telecom Bill';
+    confidence = 93;
+    indicators.push('Contains Utility Consumer ID & Usage Units');
+  } else if (hasVehicle) {
+    documentType = 'Vehicle Service & Reg';
+    confidence = 92;
+    indicators.push('Found Vehicle Chassis / Registration / Service record');
+  } else if (hasSalary) {
+    documentType = 'Salary & Payslip';
+    confidence = 95;
+    indicators.push('Found Employee Salary & Net Pay structure');
+  } else if (hasMedical) {
+    documentType = 'Medical & Pharmacy Bill';
+    confidence = 93;
+    indicators.push('Contains Medical Rx / Doctor / Lab test records');
+  } else if (hasInsurance) {
+    documentType = 'Insurance Policy';
+    confidence = 94;
+    indicators.push('Contains Insurance Policy Number & Premium details');
+  } else {
+    documentType = 'General Document';
+    confidence = 65;
+    indicators.push('General document text detected');
+  }
+
   const charCount = text.length;
   const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
-  const summary = `Classified as ${documentType}. Identified ${pricesSet.size} price values, ${datesSet.size} dates, and ${identifiersSet.size} reference identifiers.`;
+  const summary = `Intelligently classified as ${documentType} (${confidence}% confidence). Identified ${pricesSet.size} price entries, ${datesSet.size} dates, and ${identifiersSet.size} reference codes.`;
+
+  const classification = {
+    type: documentType,
+    confidence,
+    indicators,
+    features: {
+      hasTaxInfo: hasGstin || hasHsn,
+      hasPrices: entities.prices.length > 0,
+      hasDates: entities.dates.length > 0,
+      hasIdentifiers: entities.identifiers.length > 0,
+      hasContactInfo: entities.contacts.length > 0,
+    },
+  };
 
   return {
     documentType,
+    classification,
     rawText: text,
     charCount,
     wordCount,
     extractionMethod,
-    entities: {
-      prices: Array.from(pricesSet),
-      dates: Array.from(datesSet),
-      identifiers: Array.from(identifiersSet),
-      contacts: Array.from(contactsSet),
-      products: Array.from(productSet),
-      organizations: Array.from(orgSet),
-    },
+    entities,
     summary,
   };
 }

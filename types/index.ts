@@ -84,8 +84,34 @@ export interface OCRResult {
   };
 }
 
+export type DocumentClassificationType =
+  | 'Tax Invoice / E-Bill'
+  | 'Retail Store Receipt'
+  | 'Warranty Certificate'
+  | 'Shipping & Delivery Label'
+  | 'Utility & Telecom Bill'
+  | 'Vehicle Service & Reg'
+  | 'Salary & Payslip'
+  | 'Medical & Pharmacy Bill'
+  | 'Insurance Policy'
+  | 'General Document';
+
+export interface ClassificationDetails {
+  type: DocumentClassificationType;
+  confidence: number;
+  indicators: string[];
+  features: {
+    hasTaxInfo: boolean;
+    hasPrices: boolean;
+    hasDates: boolean;
+    hasIdentifiers: boolean;
+    hasContactInfo: boolean;
+  };
+}
+
 export interface GenericOCRResult {
-  documentType: 'Tax Invoice' | 'Store Receipt' | 'Warranty Card' | 'Utility Bill' | 'Shipping Label' | 'General Document';
+  documentType: DocumentClassificationType;
+  classification: ClassificationDetails;
   rawText: string;
   charCount: number;
   wordCount: number;

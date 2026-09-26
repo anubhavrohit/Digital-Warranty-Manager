@@ -502,22 +502,40 @@ export default function UploadBillPage() {
                 {/* Document Metadata Summary Line */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-1">
                   <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm border border-white/10">
-                    <div className="text-white/60 font-medium text-[10px] uppercase">Engine Used</div>
-                    <div className="font-bold text-white mt-0.5">{genericData.extractionMethod}</div>
+                    <div className="text-white/60 font-medium text-[10px] uppercase">Document Type</div>
+                    <div className="font-extrabold text-yellow-300 mt-0.5">{genericData.documentType}</div>
                   </div>
                   <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm border border-white/10">
-                    <div className="text-white/60 font-medium text-[10px] uppercase">Characters Read</div>
-                    <div className="font-bold text-yellow-300 mt-0.5">{genericData.charCount.toLocaleString()} chars</div>
+                    <div className="text-white/60 font-medium text-[10px] uppercase">Match Confidence</div>
+                    <div className="font-extrabold text-kiwi mt-0.5">🎯 {genericData.classification.confidence}% Match</div>
                   </div>
                   <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm border border-white/10">
-                    <div className="text-white/60 font-medium text-[10px] uppercase">Word Count</div>
-                    <div className="font-bold text-white mt-0.5">{genericData.wordCount} words</div>
+                    <div className="text-white/60 font-medium text-[10px] uppercase">Characters & Words</div>
+                    <div className="font-bold text-white mt-0.5">{genericData.charCount.toLocaleString()} chars &bull; {genericData.wordCount} words</div>
                   </div>
                   <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm border border-white/10">
-                    <div className="text-white/60 font-medium text-[10px] uppercase">Analysis Summary</div>
-                    <div className="font-semibold text-white/90 text-[11px] truncate mt-0.5">{genericData.summary}</div>
+                    <div className="text-white/60 font-medium text-[10px] uppercase">Extraction Method</div>
+                    <div className="font-semibold text-white/90 text-[11px] truncate mt-0.5">{genericData.extractionMethod}</div>
                   </div>
                 </div>
+
+                {/* Classification Analysis Reasons & Indicators */}
+                {genericData.classification.indicators.length > 0 && (
+                  <div className="bg-white/10 p-4 rounded-2xl backdrop-blur-sm border border-white/15 space-y-2">
+                    <div className="text-xs font-bold text-yellow-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Classification Analysis: Why this was identified as {genericData.documentType}
+                    </div>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {genericData.classification.indicators.map((ind, i) => (
+                        <span key={i} className="px-2.5 py-1 rounded-xl bg-white/20 border border-white/30 text-white font-semibold text-xs flex items-center gap-1.5 shadow-sm">
+                          <Check className="w-3.5 h-3.5 text-yellow-300" />
+                          <span>{ind}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* CATEGORIZED ENTITY CARDS GRID */}
