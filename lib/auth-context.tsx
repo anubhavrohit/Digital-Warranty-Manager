@@ -43,6 +43,7 @@ interface AuthContextType {
   addDocument: (docData: Omit<DocumentItem, 'id' | 'userId' | 'uploadedAt'>) => Promise<DocumentItem>;
   deleteDocument: (id: string) => Promise<void>;
   seedDemoData: () => void;
+  clearAllData: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -261,33 +262,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         await signInWithEmailAndPassword(auth, email, pass);
         firebaseSuccess = true;
-      } catch (err) {
+      } catch (err: any) {
+        if (err?.code === 'auth/wrong-password' || err?.code === 'auth/user-not-found' || err?.code === 'auth/invalid-credential') {
+          throw err;
+        }
         console.warn('Firebase login attempt failed or unconfigured, proceeding with server session:', err);
       }
     }
 
     if (!firebaseSuccess) {
-      const cleanUid = 'user-' + btoa(email.toLowerCase()).replace(/[^a-zA-Z0-9]/g, '').slice(0, 16);
-      const profile: UserProfile = {
-        uid: cleanUid,
-        name: email.split('@')[0] || 'User',
-        email: email,
-        createdAt: new Date().toISOString(),
-      };
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'login', email, password: pass }),
+      });
 
-      // Sync user to server DB
-      try {
-        const res = await fetch('/api/users', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(profile),
-        });
-        if (res.ok) {
-          const resData = await res.json();
-          if (resData.user) profile.name = resData.user.name;
-        }
-      } catch (e) {}
+      const resData = await res.json();
+      if (!res.ok) {
+        throw new Error(resData.error || 'Failed to sign in. Please check your credentials.');
+      }
 
+      const profile: UserProfile = resData.user;
       setUser(profile);
       setIsDemoMode(false);
       localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(profile));
@@ -309,28 +304,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await setDoc(doc(db, 'users', res.user.uid), profile);
         setUser(profile);
         firebaseSuccess = true;
-      } catch (err) {
+      } catch (err: any) {
+        if (err?.code === 'auth/email-already-in-use') {
+          throw err;
+        }
         console.warn('Firebase register attempt failed or unconfigured, proceeding with server session:', err);
       }
     }
 
     if (!firebaseSuccess) {
-      const cleanUid = 'user-' + btoa(email.toLowerCase()).replace(/[^a-zA-Z0-9]/g, '').slice(0, 16);
-      const profile: UserProfile = {
-        uid: cleanUid,
-        name,
-        email,
-        createdAt: new Date().toISOString(),
-      };
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'register', name, email, password: pass }),
+      });
 
-      try {
-        await fetch('/api/users', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(profile),
-        });
-      } catch (e) {}
+      const resData = await res.json();
+      if (!res.ok) {
+        throw new Error(resData.error || 'Failed to create account.');
+      }
 
+      const profile: UserProfile = resData.user;
       setUser(profile);
       setIsDemoMode(false);
       localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(profile));
@@ -554,6 +548,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const clearAllData = () => {
+    if (!user) return;
+    setWarranties([]);
+    setDocuments([]);
+    localStorage.removeItem(getWarrantiesStorageKey(user.uid));
+    localStorage.removeItem(getDocsStorageKey(user.uid));
+    warranties.forEach((w) => {
+      fetch(`/api/warranties?id=${encodeURIComponent(w.id)}`, { method: 'DELETE' }).catch(() => {});
+    });
+    documents.forEach((d) => {
+      fetch(`/api/documents?id=${encodeURIComponent(d.id)}`, { method: 'DELETE' }).catch(() => {});
+    });
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -574,6 +582,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         addDocument,
         deleteDocument,
         seedDemoData,
+        clearAllData,
       }}
     >
       {children}

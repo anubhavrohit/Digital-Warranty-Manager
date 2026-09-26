@@ -60,11 +60,12 @@ export default function UploadBillPage() {
 
   const handleFileSelect = (file: File) => {
     setSelectedFile(file);
-    if (file.type.startsWith('image/')) {
-      setImagePreviewUrl(URL.createObjectURL(file));
-    } else {
-      setImagePreviewUrl(null);
-    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      setImagePreviewUrl(dataUrl);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleStartOCR = async () => {
@@ -302,7 +303,9 @@ export default function UploadBillPage() {
                       Review Extracted Information Before Saving
                     </h4>
                     <p className="text-xs text-forest/80">
-                      OCR has filled the form below. Please verify or edit any incorrect details before committing to your vault.
+                      {extractedData?.isFallback
+                        ? 'Low OCR text confidence detected. Standard warranty defaults have been pre-filled for your review.'
+                        : 'OCR has filled the form below. Please verify or edit any incorrect details before committing to your vault.'}
                     </p>
                   </div>
                 </div>

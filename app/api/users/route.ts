@@ -25,22 +25,57 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, email, uid } = body;
+    const { action, name, email, password, uid } = body;
 
     if (!email) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });
     }
 
     const db = readDB();
-    const existingIndex = db.users.findIndex(
-      (u) => u.email.toLowerCase() === email.toLowerCase() || (uid && u.uid === uid)
-    );
+    const lowerEmail = email.toLowerCase().trim();
+
+    if (action === 'login') {
+      const user = db.users.find(
+        (u) => u.email.toLowerCase() === lowerEmail || (uid && u.uid === uid)
+      );
+
+      if (!user) {
+        return NextResponse.json(
+          { error: 'No account found with this email address. Please register.' },
+          { status: 404 }
+        );
+      }
+
+      if (user.password && password && user.password !== password) {
+        return NextResponse.json(
+          { error: 'Invalid password. Please check your credentials.' },
+          { status: 401 }
+        );
+      }
+
+      const { password: _, ...cleanProfile } = user;
+      return NextResponse.json({ user: cleanProfile });
+    }
+
+    if (action === 'register') {
+      const existingUser = db.users.find((u) => u.email.toLowerCase() === lowerEmail);
+      if (existingUser) {
+        return NextResponse.json(
+          { error: 'An account with this email address already exists.' },
+          { status: 400 }
+        );
+      }
+    }
+
+    const cleanUid = uid || 'user-' + btoa(lowerEmail).replace(/[^a-zA-Z0-9]/g, '').slice(0, 16);
+    const existingIndex = db.users.findIndex((u) => u.uid === cleanUid);
 
     const userProfile: UserProfile = {
-      uid: uid || 'user-' + btoa(email.toLowerCase()).replace(/[^a-zA-Z0-9]/g, '').slice(0, 16),
+      uid: cleanUid,
       name: name || email.split('@')[0],
-      email: email,
+      email: lowerEmail,
       createdAt: new Date().toISOString(),
+      password: password || undefined,
     };
 
     if (existingIndex >= 0) {
@@ -50,7 +85,9 @@ export async function POST(req: NextRequest) {
     }
 
     writeDB(db);
-    return NextResponse.json({ user: userProfile });
+
+    const { password: _, ...cleanProfile } = userProfile;
+    return NextResponse.json({ user: cleanProfile });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

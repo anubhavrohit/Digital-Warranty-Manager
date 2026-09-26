@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { getWarrantyStatus } from '@/lib/warranty-utils';
 import {
   LayoutDashboard,
   Package,
@@ -33,8 +34,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
   };
 
   const expiringCount = warranties.filter(
-    (w) => new Date(w.warrantyEndDate).getTime() - Date.now() <= 30 * 86400000 &&
-           new Date(w.warrantyEndDate).getTime() - Date.now() >= 0
+    (w) => getWarrantyStatus(w.warrantyEndDate) === 'EXPIRING_SOON'
   ).length;
 
   const navItems = [

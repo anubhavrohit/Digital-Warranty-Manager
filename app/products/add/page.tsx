@@ -10,6 +10,7 @@ import { Topbar } from '@/components/ui/Topbar';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
+import { FileUploader } from '@/components/ui/FileUploader';
 import { ArrowLeft, PlusCircle, CheckCircle2, AlertCircle } from 'lucide-react';
 
 export default function AddWarrantyPage() {
@@ -280,15 +281,30 @@ export default function AddWarrantyPage() {
               {/* Notes & Image Attachment */}
               <div>
                 <h3 className="text-sm font-bold uppercase tracking-wider text-forest border-b border-cream-dark/60 pb-2 mb-4">
-                  4. Additional Notes & Receipt URL
+                  4. Additional Notes & Receipt Upload
                 </h3>
                 <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-forest/90 mb-1.5">
+                      Upload Bill / Receipt File (Optional)
+                    </label>
+                    <FileUploader
+                      onFileSelect={(file) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                          setImageUrl(e.target?.result as string);
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                    />
+                  </div>
+
                   <Input
-                    label="Receipt Image URL (Optional)"
+                    label="Or Receipt Image URL (Optional)"
                     placeholder="https://..."
-                    value={imageUrl}
+                    value={imageUrl.startsWith('data:') ? '[Uploaded File Attached]' : imageUrl}
                     onChange={(e) => setImageUrl(e.target.value)}
-                    helperText="Paste direct link or leave blank to attach later"
+                    helperText="Or paste direct image URL"
                   />
 
                   <div>

@@ -16,6 +16,7 @@ export interface UserProfile {
   name: string;
   email: string;
   createdAt: string;
+  password?: string;
 }
 
 export interface WarrantyItem {
@@ -60,6 +61,7 @@ export interface OCRResult {
   vendor: string;
   warrantyPeriod: string; // e.g. "12 Months" or "2 Years"
   rawText?: string;
+  isFallback?: boolean;
 }
 
 export interface DashboardStats {

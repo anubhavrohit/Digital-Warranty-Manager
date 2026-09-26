@@ -248,6 +248,8 @@ function parseTextToWarrantyResult(text: string, fileName: string): OCRResult {
     price = 14990;
   }
 
+  const isFallback = text.trim().length === 0;
+
   return {
     productName,
     brand: detectedBrand,
@@ -257,5 +259,6 @@ function parseTextToWarrantyResult(text: string, fileName: string): OCRResult {
     invoiceNumber,
     vendor: detectedVendor,
     warrantyPeriod,
+    isFallback,
   };
 }

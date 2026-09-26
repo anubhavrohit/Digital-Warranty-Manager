@@ -1,6 +1,25 @@
 import { WarrantyItem, WarrantyStatus, DashboardStats } from '@/types';
 
 /**
+ * Helper to parse YYYY-MM-DD or ISO string into a local Date object set to local midnight
+ */
+export function parseLocalDate(dateStr: string): Date | null {
+  if (!dateStr) return null;
+  const parts = dateStr.split('T')[0].split('-');
+  if (parts.length === 3) {
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+      return new Date(year, month, day);
+    }
+  }
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return null;
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+/**
  * Calculates warranty status based on expiry date string (YYYY-MM-DD)
  */
 export function getWarrantyStatus(expiryDateStr: string): WarrantyStatus {
@@ -9,13 +28,11 @@ export function getWarrantyStatus(expiryDateStr: string): WarrantyStatus {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const expiry = new Date(expiryDateStr);
-  expiry.setHours(0, 0, 0, 0);
-
-  if (isNaN(expiry.getTime())) return 'EXPIRED';
+  const expiry = parseLocalDate(expiryDateStr);
+  if (!expiry) return 'EXPIRED';
 
   const diffTime = expiry.getTime() - today.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
   if (diffDays < 0) {
     return 'EXPIRED';
@@ -35,13 +52,11 @@ export function getRemainingDays(expiryDateStr: string): string {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const expiry = new Date(expiryDateStr);
-  expiry.setHours(0, 0, 0, 0);
-
-  if (isNaN(expiry.getTime())) return 'Invalid date';
+  const expiry = parseLocalDate(expiryDateStr);
+  if (!expiry) return 'Invalid date';
 
   const diffTime = expiry.getTime() - today.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
   if (diffDays < 0) {
     const absDays = Math.abs(diffDays);

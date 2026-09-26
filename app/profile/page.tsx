@@ -17,11 +17,12 @@ import {
   Sparkles,
   CheckCircle2,
   AlertCircle,
-  ShieldCheck,
+  Trash2,
 } from 'lucide-react';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 export default function ProfilePage() {
-  const { user, loading, logout, updateProfileName, resetPassword, seedDemoData, isDemoMode } =
+  const { user, loading, logout, updateProfileName, resetPassword, seedDemoData, clearAllData, isDemoMode } =
     useAuth();
   const router = useRouter();
 
@@ -33,6 +34,7 @@ export default function ProfilePage() {
   const [isResettingPass, setIsResettingPass] = useState(false);
   const [passSuccess, setPassSuccess] = useState(false);
   const [seedSuccess, setSeedSuccess] = useState(false);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -207,9 +209,19 @@ export default function ProfilePage() {
               Instantly seed sample warranties (ASUS TUF Laptop, Samsung Refrigerator, iPhone 15 Pro, Sony Headphones, LG Washing Machine) for live project demonstration.
             </p>
 
-            <Button variant="sunshine" size="sm" onClick={handleSeedData}>
-              Load Sample Demo Data
-            </Button>
+            <div className="flex flex-wrap items-center gap-3 pt-2">
+              <Button variant="sunshine" size="sm" onClick={handleSeedData}>
+                Load Sample Demo Data
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-tomato border-tomato/40 hover:bg-tomato-light"
+                onClick={() => setClearConfirmOpen(true)}
+              >
+                Clear All Data & Start Fresh
+              </Button>
+            </div>
           </div>
 
           {/* Account Logout */}
@@ -220,6 +232,18 @@ export default function ProfilePage() {
           </div>
         </main>
       </div>
+
+      <ConfirmDialog
+        isOpen={clearConfirmOpen}
+        onClose={() => setClearConfirmOpen(false)}
+        onConfirm={() => {
+          clearAllData();
+          setClearConfirmOpen(false);
+        }}
+        title="Clear All Products & Documents"
+        message="Are you sure you want to remove all sample/stored products and documents from your vault? This will leave your vault empty so you can add your own real products."
+        confirmText="Clear Everything"
+      />
     </div>
   );
 }

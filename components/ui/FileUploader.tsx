@@ -30,8 +30,11 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
 
     setSelectedFile(file);
     if (file.type.startsWith('image/')) {
-      const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setPreviewUrl(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
     } else {
       setPreviewUrl(null);
     }
