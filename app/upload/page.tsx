@@ -83,13 +83,27 @@ export default function UploadBillPage() {
   const [vendor, setVendor] = useState('');
   const [notes, setNotes] = useState('');
 
+  const [aiApiKey, setAiApiKey] = useState<string>('');
+  const [showKeyInput, setShowKeyInput] = useState<boolean>(false);
+
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!loading && !user) {
       router.push('/login');
     }
+    const savedKey = localStorage.getItem('gemini_api_key');
+    if (savedKey) setAiApiKey(savedKey);
   }, [user, loading, router]);
+
+  const saveApiKey = (key: string) => {
+    setAiApiKey(key);
+    if (key.trim()) {
+      localStorage.setItem('gemini_api_key', key.trim());
+    } else {
+      localStorage.removeItem('gemini_api_key');
+    }
+  };
 
   const handleFileSelect = (file: File) => {
     setSelectedFile(file);
@@ -115,10 +129,14 @@ export default function UploadBillPage() {
       setScanProgress(10);
       setScanStatusMessage('Loading Warranty OCR engine...');
 
-      const result = await extractWarrantyDataFromImage(selectedFile, (msg, prog) => {
-        setScanStatusMessage(msg);
-        setScanProgress(Math.round(prog * 100));
-      });
+      const result = await extractWarrantyDataFromImage(
+        selectedFile,
+        (msg, prog) => {
+          setScanStatusMessage(msg);
+          setScanProgress(Math.round(prog * 100));
+        },
+        aiApiKey
+      );
 
       setExtractedData(result);
 
@@ -162,10 +180,14 @@ export default function UploadBillPage() {
       setScanProgress(10);
       setScanStatusMessage('Starting Generic OCR & Entity Classification...');
 
-      const result = await performGenericOCR(selectedFile, (msg, prog) => {
-        setScanStatusMessage(msg);
-        setScanProgress(Math.round(prog * 100));
-      });
+      const result = await performGenericOCR(
+        selectedFile,
+        (msg, prog) => {
+          setScanStatusMessage(msg);
+          setScanProgress(Math.round(prog * 100));
+        },
+        aiApiKey
+      );
 
       setGenericData(result);
       setStep('review');
@@ -339,6 +361,56 @@ export default function UploadBillPage() {
           {/* STEP 1: Upload Area + TWO SEPARATE BUTTONS */}
           {step === 'upload' && (
             <div className="space-y-6 max-w-3xl mx-auto">
+              {/* AI Vision Engine Configuration Box */}
+              <div className="bg-white p-4 rounded-2xl border border-cream-dark shadow-sm space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-xs font-bold text-forest">
+                    <Sparkles className="w-4 h-4 text-carrot animate-pulse" />
+                    <span>
+                      {aiApiKey
+                        ? '🤖 Custom Gemini AI Vision Key Active'
+                        : '✨ AI Vision API / Local WASM Engine Active'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowKeyInput(!showKeyInput)}
+                    className="text-xs font-bold text-forest hover:text-carrot underline transition-colors"
+                  >
+                    {showKeyInput ? 'Hide AI Settings' : 'Configure Gemini AI Key'}
+                  </button>
+                </div>
+
+                {showKeyInput && (
+                  <div className="pt-2 border-t border-cream-dark/60 space-y-2">
+                    <label className="text-[11px] font-bold text-forest uppercase tracking-wider block">
+                      Google Gemini AI Vision API Key
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        placeholder="Paste your Gemini API Key (e.g. AIzaSy...)"
+                        value={aiApiKey}
+                        onChange={(e) => saveApiKey(e.target.value)}
+                        className="flex-1 px-3.5 py-2 text-xs bg-cream-light/60 border border-cream-dark rounded-xl text-forest focus:outline-none focus:ring-2 focus:ring-forest font-mono"
+                      />
+                      {aiApiKey && (
+                        <button
+                          type="button"
+                          onClick={() => saveApiKey('')}
+                          className="px-3 py-2 bg-tomato/10 text-tomato text-xs font-bold rounded-xl border border-tomato/30 hover:bg-tomato/20 transition-colors"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-forest/70 leading-relaxed">
+                      Using <strong>Gemini Multimodal AI Vision API</strong> provides near-100% human-grade document OCR accuracy. If left blank, it uses the server key or local Tesseract engine.
+                    </p>
+                  </div>
+                )}
+              </div>
+
               {errors.form && (
                 <div className="p-3 rounded-xl bg-tomato-light border border-tomato/30 text-tomato text-xs font-semibold flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0" />

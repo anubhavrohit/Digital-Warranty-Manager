@@ -2,45 +2,84 @@ import { recognize } from 'tesseract.js';
 import { OCRResult, GenericOCRResult, ProductCategory } from '@/types';
 
 /**
- * Advanced Browser-Side OCR and Multi-Format Invoice Parsing Engine.
- * Handles JPG, PNG, WEBP images and native/scanned PDF files.
- * Uses image preprocessing (contrast enhancement + grayscale) and pdfjs-dist.
+ * Helper to convert File to Base64 data URL string
+ */
+export function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Advanced AI & Browser-Side OCR Engine.
+ * Attempts Gemini Multimodal AI Vision API first; falls back to Tesseract.js & PDF.js.
  */
 export async function extractWarrantyDataFromImage(
   file: File,
-  onProgress?: (status: string, progress: number) => void
+  onProgress?: (status: string, progress: number) => void,
+  userApiKey?: string
 ): Promise<OCRResult> {
+  // 1. Try Gemini Multimodal AI Vision API OCR
+  try {
+    if (onProgress) onProgress('Connecting to Gemini AI Vision API...', 0.15);
+    const base64Data = await fileToBase64(file);
+
+    if (onProgress) onProgress('Analyzing document with Gemini Multimodal AI...', 0.4);
+
+    const res = await fetch('/api/ocr', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        imageBase64: base64Data,
+        mimeType: file.type || 'image/jpeg',
+        mode: 'warranty',
+        apiKey: userApiKey,
+      }),
+    });
+
+    if (res.ok) {
+      const json = await res.json();
+      if (json.success && json.data) {
+        if (onProgress) onProgress('AI Vision Extraction Complete!', 1.0);
+        return json.data;
+      }
+    }
+  } catch (aiErr) {
+    console.warn('AI OCR route fallback to Tesseract/PDF.js:', aiErr);
+  }
+
+  // 2. Local Fallback Engine (Tesseract.js WASM + PDF.js)
   let rawText = '';
   const fileType = file.type || '';
   const isPdf = fileType === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
 
-  if (onProgress) onProgress('Preparing document...', 0.1);
+  if (onProgress) onProgress('Using local Tesseract / PDF engine...', 0.2);
 
   let extractionMethod: 'PDF Direct Text' | 'Tesseract.js Engine' = 'Tesseract.js Engine';
 
   try {
     if (isPdf) {
-      if (onProgress) onProgress('Parsing PDF text content...', 0.2);
-      // Attempt 1: Extract embedded text directly from PDF
+      if (onProgress) onProgress('Parsing PDF text content...', 0.3);
       rawText = await extractTextFromPdfFile(file);
 
       if (rawText && rawText.trim().length >= 20) {
         extractionMethod = 'PDF Direct Text';
       } else {
-        // Attempt 2: If PDF has no embedded text (scanned PDF), render page 1 to canvas and OCR it
-        if (onProgress) onProgress('Rendering scanned PDF page to high-res image...', 0.4);
+        if (onProgress) onProgress('Rendering scanned PDF page to high-res image...', 0.5);
         const canvas = await renderPdfPageToCanvas(file);
         if (canvas) {
-          if (onProgress) onProgress('Applying OCR text recognition on scanned PDF...', 0.6);
+          if (onProgress) onProgress('Applying OCR text recognition on scanned PDF...', 0.7);
           rawText = await runTesseractOCR(canvas, onProgress);
         }
       }
     } else {
-      // Standard Image file (JPG, PNG, WEBP)
       if (onProgress) onProgress('Enhancing image contrast for OCR...', 0.3);
       const processedImage = await preprocessImageForOCR(file);
 
-      if (onProgress) onProgress('Running neural OCR text extraction...', 0.5);
+      if (onProgress) onProgress('Running neural OCR text extraction...', 0.6);
       rawText = await runTesseractOCR(processedImage, onProgress);
     }
   } catch (err) {
@@ -49,7 +88,6 @@ export async function extractWarrantyDataFromImage(
 
   if (onProgress) onProgress('Extracting structured warranty fields...', 0.9);
 
-  // Parse extracted raw text using intelligent regular expressions & pattern matching
   const parsed = parseTextToWarrantyResult(rawText, file.name);
   parsed.rawText = rawText.trim();
   parsed.extractionMethod = extractionMethod;
@@ -580,14 +618,45 @@ export function inferCategoryFromProduct(productName: string, brand: string): Pr
  */
 export async function performGenericOCR(
   file: File,
-  onProgress?: (status: string, progress: number) => void
+  onProgress?: (status: string, progress: number) => void,
+  userApiKey?: string
 ): Promise<GenericOCRResult> {
+  // 1. Try Gemini Multimodal AI Vision API OCR
+  try {
+    if (onProgress) onProgress('Connecting to Gemini AI Vision API...', 0.15);
+    const base64Data = await fileToBase64(file);
+
+    if (onProgress) onProgress('Analyzing document with Gemini Multimodal AI...', 0.4);
+
+    const res = await fetch('/api/ocr', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        imageBase64: base64Data,
+        mimeType: file.type || 'image/jpeg',
+        mode: 'generic',
+        apiKey: userApiKey,
+      }),
+    });
+
+    if (res.ok) {
+      const json = await res.json();
+      if (json.success && json.data) {
+        if (onProgress) onProgress('AI Vision Extraction Complete!', 1.0);
+        return json.data;
+      }
+    }
+  } catch (aiErr) {
+    console.warn('AI Generic OCR fallback to Tesseract:', aiErr);
+  }
+
+  // 2. Local Fallback Engine (Tesseract.js WASM + PDF.js)
   let rawText = '';
   const fileType = file.type || '';
   const isPdf = fileType === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
   let extractionMethod: 'PDF Direct Text' | 'Tesseract.js Engine' = 'Tesseract.js Engine';
 
-  if (onProgress) onProgress('Preparing document for Generic OCR...', 0.1);
+  if (onProgress) onProgress('Using local Tesseract / PDF engine...', 0.2);
 
   try {
     if (isPdf) {
