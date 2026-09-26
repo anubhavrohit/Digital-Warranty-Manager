@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { extractWarrantyDataFromImage } from '@/lib/ocr-service';
+import { extractWarrantyDataFromImage, inferCategoryFromProduct } from '@/lib/ocr-service';
 import { OCRResult, ProductCategory } from '@/types';
 import { Sidebar } from '@/components/ui/Sidebar';
 import { Topbar } from '@/components/ui/Topbar';
@@ -22,6 +22,8 @@ import {
   Sparkles,
   ArrowRight,
   ShieldCheck,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 export default function UploadBillPage() {
@@ -35,6 +37,9 @@ export default function UploadBillPage() {
   // Workflow steps: 'upload' -> 'scanning' -> 'review'
   const [step, setStep] = useState<'upload' | 'scanning' | 'review'>('upload');
   const [extractedData, setExtractedData] = useState<OCRResult | null>(null);
+  const [scanProgress, setScanProgress] = useState<number>(0);
+  const [scanStatusMessage, setScanStatusMessage] = useState<string>('Initializing OCR...');
+  const [showRawText, setShowRawText] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   // Editable Form Fields (Pre-populated by OCR)
@@ -60,12 +65,17 @@ export default function UploadBillPage() {
 
   const handleFileSelect = (file: File) => {
     setSelectedFile(file);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const dataUrl = e.target?.result as string;
-      setImagePreviewUrl(dataUrl);
-    };
-    reader.readAsDataURL(file);
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target?.result as string;
+        setImagePreviewUrl(dataUrl);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      // PDF or non-image document
+      setImagePreviewUrl(null);
+    }
   };
 
   const handleStartOCR = async () => {
@@ -73,23 +83,35 @@ export default function UploadBillPage() {
 
     try {
       setStep('scanning');
-      const result = await extractWarrantyDataFromImage(selectedFile);
+      setScanProgress(10);
+      setScanStatusMessage('Loading document engine...');
+
+      const result = await extractWarrantyDataFromImage(selectedFile, (msg, prog) => {
+        setScanStatusMessage(msg);
+        setScanProgress(Math.round(prog * 100));
+      });
+
       setExtractedData(result);
 
       // Pre-fill editable fields
       setProductName(result.productName);
       setBrand(result.brand);
+      setCategory(inferCategoryFromProduct(result.productName, result.brand));
       setSerialNumber(result.serialNumber);
       setPurchaseDate(result.purchaseDate);
       setWarrantyStartDate(result.purchaseDate);
 
       // Calculate expiry date based on warranty period text (e.g. "1 Year" or "2 Years")
       const pDate = new Date(result.purchaseDate || Date.now());
-      const yearsToAdd = result.warrantyPeriod.includes('2') ? 2 : 1;
+      const yearsToAdd = result.warrantyPeriod.includes('2')
+        ? 2
+        : result.warrantyPeriod.includes('3')
+        ? 3
+        : 1;
       pDate.setFullYear(pDate.getFullYear() + yearsToAdd);
       setWarrantyEndDate(pDate.toISOString().split('T')[0]);
 
-      setPrice(String(result.price));
+      setPrice(result.price > 0 ? String(result.price) : '');
       setInvoiceNumber(result.invoiceNumber);
       setVendor(result.vendor);
       setNotes(`OCR Extracted Warranty Period: ${result.warrantyPeriod}`);
@@ -98,7 +120,7 @@ export default function UploadBillPage() {
     } catch (err) {
       console.error('OCR Error:', err);
       setStep('upload');
-      setErrors({ form: 'Failed to process image. Please try again or enter details manually.' });
+      setErrors({ form: 'Failed to process document. Please try again or enter details manually.' });
     }
   };
 
@@ -107,6 +129,8 @@ export default function UploadBillPage() {
     setImagePreviewUrl(null);
     setExtractedData(null);
     setStep('upload');
+    setScanProgress(0);
+    setScanStatusMessage('');
     setErrors({});
   };
 
@@ -212,7 +236,7 @@ export default function UploadBillPage() {
               Upload Bill & Extract Warranty
             </h1>
             <p className="text-xs sm:text-sm text-forest/70">
-              Upload your purchase invoice image to automatically detect product name, serial number and dates.
+              Upload your purchase invoice (JPG, PNG, WEBP or PDF) to automatically detect product details, serial numbers, prices, and dates.
             </p>
           </div>
 
@@ -252,6 +276,13 @@ export default function UploadBillPage() {
           {/* STEP 1: Upload Area */}
           {step === 'upload' && (
             <div className="space-y-6">
+              {errors.form && (
+                <div className="p-3 rounded-xl bg-tomato-light border border-tomato/30 text-tomato text-xs font-semibold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{errors.form}</span>
+                </div>
+              )}
+
               <FileUploader onFileSelect={handleFileSelect} />
 
               {selectedFile && (
@@ -267,24 +298,38 @@ export default function UploadBillPage() {
             </div>
           )}
 
-          {/* STEP 2: Scanning Loading Animation */}
+          {/* STEP 2: Scanning Loading Animation with Real Progress Bar */}
           {step === 'scanning' && (
-            <div className="bg-white rounded-3xl border border-cream-dark p-12 text-center space-y-6 shadow-2xl">
-              <div className="relative w-20 h-20 mx-auto flex items-center justify-center">
+            <div className="bg-white rounded-3xl border border-cream-dark p-8 sm:p-12 text-center space-y-6 shadow-2xl">
+              <div className="relative w-24 h-24 mx-auto flex items-center justify-center">
                 <div className="absolute inset-0 rounded-full border-4 border-cream-dark border-t-carrot animate-spin" />
-                <Zap className="w-8 h-8 text-carrot animate-pulse" />
+                <Zap className="w-10 h-10 text-carrot animate-pulse" />
               </div>
 
               <div>
                 <h3 className="text-xl font-extrabold text-forest">Scanning Bill Document...</h3>
-                <p className="text-xs text-forest/70 mt-1 max-w-sm mx-auto">
-                  Extracting product name, serial number, purchase price, vendor, and warranty dates...
+                <p className="text-xs font-semibold text-forest/70 mt-1 max-w-sm mx-auto min-h-[20px]">
+                  {scanStatusMessage}
                 </p>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="max-w-md mx-auto space-y-2">
+                <div className="w-full bg-cream-dark/40 rounded-full h-3 overflow-hidden p-0.5 border border-cream-dark">
+                  <div
+                    className="bg-carrot h-full rounded-full transition-all duration-300 ease-out"
+                    style={{ width: `${Math.max(5, scanProgress)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between items-center text-[11px] font-bold text-forest/70 px-1">
+                  <span>Progress</span>
+                  <span>{scanProgress}%</span>
+                </div>
               </div>
 
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sunshine-light border border-sunshine/60 text-forest text-xs font-bold">
                 <Sparkles className="w-4 h-4 text-carrot animate-bounce" />
-                <span>Running Real Tesseract.js WebAssembly OCR Engine</span>
+                <span>Powered by Tesseract OCR & Multi-Format PDF Parser</span>
               </div>
             </div>
           )}
@@ -305,7 +350,7 @@ export default function UploadBillPage() {
                     <p className="text-xs text-forest/80">
                       {extractedData?.isFallback
                         ? 'Low OCR text confidence detected. Standard warranty defaults have been pre-filled for your review.'
-                        : 'OCR has filled the form below. Please verify or edit any incorrect details before committing to your vault.'}
+                        : 'OCR engine has successfully scanned your bill. Please verify or edit any fields before saving.'}
                     </p>
                   </div>
                 </div>
@@ -356,6 +401,7 @@ export default function UploadBillPage() {
                       <Input
                         label="Purchase Price (₹ INR)"
                         type="number"
+                        placeholder="e.g. 14999"
                         value={price}
                         onChange={(e) => setPrice(e.target.value)}
                         error={errors.price}
@@ -380,6 +426,7 @@ export default function UploadBillPage() {
 
                       <Input
                         label="Serial Number (S/N)"
+                        placeholder="e.g. SN-8947201"
                         value={serialNumber}
                         onChange={(e) => setSerialNumber(e.target.value)}
                       />
@@ -397,12 +444,14 @@ export default function UploadBillPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
                       <Input
                         label="Store / Vendor"
+                        placeholder="e.g. Amazon India, Croma"
                         value={vendor}
                         onChange={(e) => setVendor(e.target.value)}
                       />
 
                       <Input
                         label="Invoice Number"
+                        placeholder="e.g. INV-2024-901"
                         value={invoiceNumber}
                         onChange={(e) => setInvoiceNumber(e.target.value)}
                       />
@@ -422,16 +471,26 @@ export default function UploadBillPage() {
                   </div>
 
                   {extractedData?.rawText && (
-                    <div className="bg-cream-light/80 p-3.5 rounded-2xl border border-cream-dark/60 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-forest flex items-center gap-1.5">
-                          <FileText className="w-3.5 h-3.5 text-carrot" />
-                          Scanned Raw OCR Text (Detected from Document)
+                    <div className="bg-cream-light/80 rounded-2xl border border-cream-dark/60 overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setShowRawText(!showRawText)}
+                        className="w-full px-4 py-3 flex items-center justify-between text-xs font-bold text-forest hover:bg-cream-dark/30 transition-colors"
+                      >
+                        <span className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-carrot" />
+                          Scanned Raw OCR Text ({extractedData.rawText.length} characters detected)
                         </span>
-                      </div>
-                      <pre className="text-[11px] font-mono text-forest/80 bg-white p-3 rounded-xl border border-cream-dark/60 max-h-36 overflow-y-auto whitespace-pre-wrap leading-relaxed">
-                        {extractedData.rawText}
-                      </pre>
+                        {showRawText ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      </button>
+
+                      {showRawText && (
+                        <div className="p-4 border-t border-cream-dark/60 bg-white">
+                          <pre className="text-[11px] font-mono text-forest/80 bg-cream-light/40 p-3 rounded-xl border border-cream-dark/40 max-h-48 overflow-y-auto whitespace-pre-wrap leading-relaxed">
+                            {extractedData.rawText}
+                          </pre>
+                        </div>
+                      )}
                     </div>
                   )}
 
