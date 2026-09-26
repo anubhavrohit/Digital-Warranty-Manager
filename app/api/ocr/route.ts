@@ -158,6 +158,12 @@ JSON Schema:
     }
   } catch (err: any) {
     console.error('AI OCR Route Error:', err);
-    return NextResponse.json({ error: err.message || 'AI OCR processing failed.' }, { status: 500 });
+    let errorMessage = err.message || 'AI OCR processing failed.';
+    if (errorMessage.includes('API_KEY_SERVICE_BLOCKED') || err.status === 403) {
+      errorMessage = 'Gemini AI Error (403 Forbidden): The provided API key is blocked or "Generative Language API" is disabled in Google Cloud Console / AI Studio for project 625421628083. Please enable the Generative Language API or generate a new key at https://aistudio.google.com/app/apikey.';
+    } else if (errorMessage.includes('API key not valid')) {
+      errorMessage = 'Gemini AI Error: Invalid API key provided. Please generate a valid API key at https://aistudio.google.com/app/apikey.';
+    }
+    return NextResponse.json({ error: errorMessage }, { status: err.status || 500 });
   }
 }
