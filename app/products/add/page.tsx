@@ -11,7 +11,8 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { FileUploader } from '@/components/ui/FileUploader';
-import { ArrowLeft, PlusCircle, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, PlusCircle, CheckCircle2, AlertCircle, Globe, Sparkles, RefreshCw, ImageIcon } from 'lucide-react';
+import { fetchProductImageFromInternet } from '@/lib/ocr-service';
 
 export default function AddWarrantyPage() {
   const { user, loading, addWarranty, addDocument } = useAuth();
@@ -38,6 +39,27 @@ export default function AddWarrantyPage() {
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [notes, setNotes] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+
+  // Web-Fetched Product Photo State
+  const [productPhotoUrl, setProductPhotoUrl] = useState('');
+  const [productPhotoSource, setProductPhotoSource] = useState('');
+  const [isFetchingPhoto, setIsFetchingPhoto] = useState(false);
+
+  const handleFetchPhoto = async () => {
+    if (!productName.trim() && !brand.trim()) return;
+    setIsFetchingPhoto(true);
+    try {
+      const data = await fetchProductImageFromInternet(productName.trim(), brand.trim(), category);
+      if (data && data.imageUrl) {
+        setProductPhotoUrl(data.imageUrl);
+        setProductPhotoSource(data.source);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch photo:', err);
+    } finally {
+      setIsFetchingPhoto(false);
+    }
+  };
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -99,8 +121,8 @@ export default function AddWarrantyPage() {
         serialNumber: serialNumber.trim(),
         invoiceNumber: invoiceNumber.trim(),
         notes: notes.trim(),
-        productImageUrl: imageUrl.trim() || undefined,
-        invoiceImageUrl: imageUrl.trim() || undefined,
+        productImageUrl: productPhotoUrl.trim() || imageUrl.trim() || undefined,
+        invoiceImageUrl: imageUrl.trim() || productPhotoUrl.trim() || undefined,
       });
 
       // If document URL present, record in documents repository as well
@@ -212,6 +234,42 @@ export default function AddWarrantyPage() {
                     error={errors.purchasePrice}
                     required
                   />
+                </div>
+
+                {/* Auto Web Image Fetcher */}
+                <div className="mt-4 p-4 rounded-2xl bg-cream-light/60 border border-cream-dark/80 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 w-full sm:w-auto">
+                    {productPhotoUrl ? (
+                      <img
+                        src={productPhotoUrl}
+                        alt="Product Photo Preview"
+                        className="w-16 h-16 rounded-xl object-contain bg-white p-1 border border-cream-dark shadow-xs shrink-0"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-xl bg-white border border-cream-dark flex items-center justify-center text-forest/40 shrink-0">
+                        <ImageIcon className="w-8 h-8" />
+                      </div>
+                    )}
+                    <div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-forest flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-carrot" />
+                        Product Photo from Internet
+                      </h4>
+                      <p className="text-[11px] text-forest/60">
+                        {productPhotoUrl ? `Found: ${productPhotoSource || 'Web Image'}` : 'Auto-searches product & brand photo from the internet'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleFetchPhoto}
+                    disabled={isFetchingPhoto || (!productName.trim() && !brand.trim())}
+                    className="w-full sm:w-auto px-4 py-2 rounded-xl bg-forest hover:bg-forest/90 disabled:opacity-50 text-white font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-2"
+                  >
+                    <Globe className={`w-3.5 h-3.5 ${isFetchingPhoto ? 'animate-spin' : ''}`} />
+                    <span>{isFetchingPhoto ? 'Searching Web...' : productPhotoUrl ? 'Re-fetch Web Photo' : 'Fetch Photo from Web'}</span>
+                  </button>
                 </div>
               </div>
 

@@ -9,6 +9,7 @@ import {
   performGenericOCR,
   inferCategoryFromProduct,
   fetchModelStatuses,
+  fetchProductImageFromInternet,
 } from '@/lib/ocr-service';
 import { OCRResult, GenericOCRResult, ProductCategory, AIModelStatus } from '@/types';
 import { Sidebar } from '@/components/ui/Sidebar';
@@ -48,6 +49,8 @@ import {
   Cpu,
   RefreshCw,
   Activity,
+  Globe,
+  ImageIcon,
 } from 'lucide-react';
 
 export default function UploadBillPage() {
@@ -176,6 +179,29 @@ export default function UploadBillPage() {
   const [vendor, setVendor] = useState('');
   const [notes, setNotes] = useState('');
 
+  // Web-Fetched Product Photo State
+  const [productPhotoUrl, setProductPhotoUrl] = useState<string>('');
+  const [productPhotoSource, setProductPhotoSource] = useState<string>('');
+  const [productPhotoAlternatives, setProductPhotoAlternatives] = useState<string[]>([]);
+  const [isFetchingPhoto, setIsFetchingPhoto] = useState<boolean>(false);
+
+  const handleFetchProductPhoto = async (name: string, bName?: string, cat?: ProductCategory) => {
+    if (!name && !bName) return;
+    setIsFetchingPhoto(true);
+    try {
+      const photoData = await fetchProductImageFromInternet(name, bName, cat);
+      if (photoData && photoData.imageUrl) {
+        setProductPhotoUrl(photoData.imageUrl);
+        setProductPhotoSource(photoData.source);
+        setProductPhotoAlternatives(photoData.alternatives);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch product photo from internet:', err);
+    } finally {
+      setIsFetchingPhoto(false);
+    }
+  };
+
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -218,7 +244,8 @@ export default function UploadBillPage() {
       // Pre-fill editable form fields
       setProductName(result.productName);
       setBrand(result.brand);
-      setCategory(inferCategoryFromProduct(result.productName, result.brand));
+      const detectedCat = inferCategoryFromProduct(result.productName, result.brand);
+      setCategory(detectedCat);
       setSerialNumber(result.serialNumber);
       setPurchaseDate(result.purchaseDate);
       setWarrantyStartDate(result.purchaseDate);
@@ -236,6 +263,9 @@ export default function UploadBillPage() {
       setInvoiceNumber(result.invoiceNumber);
       setVendor(result.vendor);
       setNotes(`OCR Extracted Warranty Period: ${result.warrantyPeriod}`);
+
+      // Auto-fetch real product and brand photo from internet
+      handleFetchProductPhoto(result.productName, result.brand, detectedCat);
 
       setStep('review');
     } catch (err: any) {
@@ -274,6 +304,9 @@ export default function UploadBillPage() {
     setImagePreviewUrl(null);
     setExtractedData(null);
     setGenericData(null);
+    setProductPhotoUrl('');
+    setProductPhotoSource('');
+    setProductPhotoAlternatives([]);
     setStep('upload');
     setScanProgress(0);
     setScanStatusMessage('');
@@ -333,7 +366,7 @@ export default function UploadBillPage() {
         serialNumber: serialNumber.trim(),
         invoiceNumber: invoiceNumber.trim(),
         notes: notes.trim(),
-        productImageUrl: previewToUse,
+        productImageUrl: productPhotoUrl.trim() || previewToUse,
         invoiceImageUrl: previewToUse,
       });
 
@@ -1140,8 +1173,85 @@ export default function UploadBillPage() {
 
               {/* Main Content Layout: Left side Document Preview, Right side Form */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                {/* Left Column: Document File Card & Raw Text */}
+                {/* Left Column: Product Photo & Document File Card */}
                 <div className="lg:col-span-4 space-y-6">
+                  {/* Web-Fetched Product Photo Card */}
+                  <div className="bg-white rounded-3xl border border-cream-dark p-5 shadow-warm space-y-4">
+                    <div className="flex items-center justify-between border-b border-cream-dark/60 pb-2">
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-forest flex items-center gap-1.5">
+                        <ImageIcon className="w-4 h-4 text-carrot" />
+                        Product Photo
+                      </span>
+                      {productPhotoUrl ? (
+                        <span className="px-2 py-0.5 rounded-full bg-kiwi/15 border border-kiwi/30 text-kiwi text-[9px] font-bold flex items-center gap-1">
+                          <Globe className="w-2.5 h-2.5" />
+                          Web Photo
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <div className="bg-cream-light/60 rounded-2xl border border-cream-dark/60 p-3 flex flex-col items-center justify-center min-h-[170px] relative overflow-hidden">
+                      {isFetchingPhoto ? (
+                        <div className="flex flex-col items-center gap-2 py-8 text-forest/70">
+                          <RefreshCw className="w-6 h-6 animate-spin text-carrot" />
+                          <span className="text-xs font-bold">Searching web for product photo...</span>
+                        </div>
+                      ) : productPhotoUrl ? (
+                        <div className="relative w-full flex flex-col items-center">
+                          <img
+                            src={productPhotoUrl}
+                            alt="Product Photo from Internet"
+                            className="max-h-44 w-full rounded-xl object-contain shadow-xs bg-white p-2 border border-cream-dark/60"
+                          />
+                          {productPhotoSource && (
+                            <span className="text-[10px] text-forest/60 mt-2 font-medium truncate max-w-full">
+                              Source: {productPhotoSource}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="space-y-2 py-6 text-center">
+                          <Package className="w-8 h-8 text-forest/40 mx-auto" />
+                          <p className="text-xs font-bold text-forest/70">No web photo loaded</p>
+                          <button
+                            type="button"
+                            onClick={() => handleFetchProductPhoto(productName, brand, category)}
+                            className="text-xs font-bold text-carrot hover:underline flex items-center gap-1 mx-auto"
+                          >
+                            <Globe className="w-3 h-3" />
+                            Fetch Photo from Web
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => handleFetchProductPhoto(productName, brand, category)}
+                        disabled={isFetchingPhoto}
+                        className="text-xs font-bold text-forest/80 hover:text-forest bg-cream-light px-3 py-1.5 rounded-xl border border-cream-dark flex items-center gap-1.5 transition-colors"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${isFetchingPhoto ? 'animate-spin text-carrot' : ''}`} />
+                        <span>Re-search Web</span>
+                      </button>
+
+                      {productPhotoAlternatives.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = productPhotoAlternatives[0];
+                            setProductPhotoAlternatives([...productPhotoAlternatives.slice(1), productPhotoUrl]);
+                            setProductPhotoUrl(next);
+                          }}
+                          className="text-xs font-bold text-forest/80 hover:text-forest bg-cream-light px-3 py-1.5 rounded-xl border border-cream-dark transition-colors"
+                        >
+                          Next Alternative ({productPhotoAlternatives.length})
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="bg-white rounded-3xl border border-cream-dark p-5 shadow-warm space-y-4">
                     <h3 className="text-sm font-bold uppercase tracking-wider text-forest border-b border-cream-dark/60 pb-2 flex items-center justify-between">
                       <span>Scanned Document</span>

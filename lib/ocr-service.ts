@@ -19,6 +19,36 @@ export async function fetchModelStatuses(forceRefresh = false): Promise<AIModelS
 }
 
 /**
+ * Fetches real product and brand photos from the internet
+ */
+export async function fetchProductImageFromInternet(
+  productName: string,
+  brand?: string,
+  category?: string
+): Promise<{ imageUrl: string; source: string; alternatives: string[] } | null> {
+  try {
+    const params = new URLSearchParams();
+    if (productName) params.set('q', productName);
+    if (brand) params.set('brand', brand);
+    if (category) params.set('category', category);
+
+    const res = await fetch(`/api/product-image?${params.toString()}`);
+    const data = await res.json();
+    if (data.success && data.imageUrl) {
+      return {
+        imageUrl: data.imageUrl,
+        source: data.source || 'Web Search',
+        alternatives: Array.isArray(data.alternatives) ? data.alternatives : [],
+      };
+    }
+    return null;
+  } catch (err) {
+    console.warn('Failed to fetch product photo from web:', err);
+    return null;
+  }
+}
+
+/**
  * Helper to convert File to Base64 data URL string
  */
 export function fileToBase64(file: File): Promise<string> {
