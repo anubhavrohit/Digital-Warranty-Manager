@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
@@ -8,8 +8,9 @@ import {
   extractWarrantyDataFromImage,
   performGenericOCR,
   inferCategoryFromProduct,
+  fetchModelStatuses,
 } from '@/lib/ocr-service';
-import { OCRResult, GenericOCRResult, ProductCategory } from '@/types';
+import { OCRResult, GenericOCRResult, ProductCategory, AIModelStatus } from '@/types';
 import { Sidebar } from '@/components/ui/Sidebar';
 import { Topbar } from '@/components/ui/Topbar';
 import { FileUploader } from '@/components/ui/FileUploader';
@@ -43,6 +44,10 @@ import {
   Phone,
   Hash,
   Building,
+  Timer,
+  Cpu,
+  RefreshCw,
+  Activity,
 } from 'lucide-react';
 
 export default function UploadBillPage() {
@@ -52,6 +57,56 @@ export default function UploadBillPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+
+  // Model Selection & Live Busy/Free Status State
+  const [selectedModel, setSelectedModel] = useState<string>('auto');
+  const [modelStatuses, setModelStatuses] = useState<AIModelStatus[]>([
+    {
+      id: 'gemini-3.1-flash-lite',
+      name: 'Gemini 3.1 Flash Lite',
+      description: 'Ultra fast & low latency (~1-2s)',
+      status: 'free',
+      statusLabel: 'Free & Fast',
+      latencyMs: 1300,
+      badgeColor: 'green',
+      isRecommended: true,
+    },
+    {
+      id: 'gemini-3.5-flash',
+      name: 'Gemini 3.5 Flash',
+      description: 'Balanced multimodal model (~4-6s)',
+      status: 'free',
+      statusLabel: 'Free & Fast',
+      latencyMs: 4200,
+      badgeColor: 'green',
+    },
+    {
+      id: 'gemini-3.8-flash',
+      name: 'Gemini 3.8 Flash',
+      description: 'Flagship accuracy (traffic spikes)',
+      status: 'busy',
+      statusLabel: 'Busy / High Load',
+      latencyMs: null,
+      badgeColor: 'red',
+    },
+  ]);
+  const [isCheckingModels, setIsCheckingModels] = useState(false);
+
+  const loadModelStatuses = async (force = false) => {
+    setIsCheckingModels(true);
+    try {
+      const list = await fetchModelStatuses(force);
+      if (list && list.length > 0) {
+        setModelStatuses(list);
+      }
+    } finally {
+      setIsCheckingModels(false);
+    }
+  };
+
+  useEffect(() => {
+    loadModelStatuses();
+  }, []);
 
   // Workflow steps: 'upload' -> 'scanning' -> 'review'
   const [step, setStep] = useState<'upload' | 'scanning' | 'review'>('upload');
@@ -69,6 +124,44 @@ export default function UploadBillPage() {
   const [scanStatusMessage, setScanStatusMessage] = useState<string>('Initializing OCR...');
   const [showRawText, setShowRawText] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Timer state
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [totalTimeTaken, setTotalTimeTaken] = useState<number | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const scanStartRef = useRef<number | null>(null);
+
+  // Start/stop the live timer when step changes
+  useEffect(() => {
+    if (step === 'scanning') {
+      scanStartRef.current = Date.now();
+      setElapsedSeconds(0);
+      setTotalTimeTaken(null);
+      timerRef.current = setInterval(() => {
+        if (scanStartRef.current) {
+          setElapsedSeconds(Math.floor((Date.now() - scanStartRef.current) / 1000));
+        }
+      }, 1000);
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      if (step === 'review' && scanStartRef.current) {
+        setTotalTimeTaken(Math.round((Date.now() - scanStartRef.current) / 1000));
+        scanStartRef.current = null;
+      }
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [step]);
+
+  const formatTime = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
+  };
 
   // Editable Form Fields (Pre-populated by Warranty OCR)
   const [productName, setProductName] = useState('');
@@ -118,7 +211,7 @@ export default function UploadBillPage() {
       const result = await extractWarrantyDataFromImage(selectedFile, (msg, prog) => {
         setScanStatusMessage(msg);
         setScanProgress(Math.round(prog * 100));
-      });
+      }, selectedModel);
 
       setExtractedData(result);
 
@@ -165,7 +258,7 @@ export default function UploadBillPage() {
       const result = await performGenericOCR(selectedFile, (msg, prog) => {
         setScanStatusMessage(msg);
         setScanProgress(Math.round(prog * 100));
-      });
+      }, selectedModel);
 
       setGenericData(result);
       setStep('review');
@@ -364,6 +457,110 @@ export default function UploadBillPage() {
                     </button>
                   </div>
 
+                  {/* AI Model Selector & Real-Time Busy / Free Load Status */}
+                  <div className="bg-cream-light/60 p-4 rounded-2xl border border-cream-dark/80 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Cpu className="w-4 h-4 text-forest" />
+                        <span className="text-xs font-extrabold uppercase tracking-wider text-forest">
+                          AI Model Selection & Live Load
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => loadModelStatuses(true)}
+                        disabled={isCheckingModels}
+                        className="px-2.5 py-1 text-[11px] font-bold text-forest/70 hover:text-forest bg-white rounded-xl border border-cream-dark transition-all flex items-center gap-1.5 shadow-xs"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${isCheckingModels ? 'animate-spin text-carrot' : 'text-forest/60'}`} />
+                        <span>{isCheckingModels ? 'Pinging Models...' : 'Check Live Status'}</span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-0.5">
+                      {/* Option 0: Auto (Fastest Available) */}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedModel('auto')}
+                        className={`p-3 rounded-xl text-left border transition-all flex flex-col justify-between ${
+                          selectedModel === 'auto'
+                            ? 'bg-forest text-white border-forest shadow-md'
+                            : 'bg-white hover:bg-cream-light border-cream-dark text-forest'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black flex items-center gap-1.5">
+                            <Zap className={`w-3.5 h-3.5 ${selectedModel === 'auto' ? 'text-sunshine' : 'text-carrot'}`} />
+                            Auto
+                          </span>
+                          <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-full ${
+                            selectedModel === 'auto' ? 'bg-sunshine/20 text-sunshine' : 'bg-kiwi/15 text-kiwi'
+                          }`}>
+                            Smart Route
+                          </span>
+                        </div>
+                        <p className={`text-[10px] mt-1.5 leading-tight ${selectedModel === 'auto' ? 'text-white/80' : 'text-forest/60'}`}>
+                          Auto-selects fastest free model with fallback
+                        </p>
+                      </button>
+
+                      {/* Options 1-3: Dynamic models */}
+                      {modelStatuses.map((m) => {
+                        const isSelected = selectedModel === m.id;
+                        const isFree = m.status === 'free';
+                        const isBusy = m.status === 'busy';
+                        const isModerate = m.status === 'moderate';
+
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => setSelectedModel(m.id)}
+                            className={`p-3 rounded-xl text-left border transition-all flex flex-col justify-between ${
+                              isSelected
+                                ? 'bg-forest text-white border-forest shadow-md'
+                                : 'bg-white hover:bg-cream-light border-cream-dark text-forest'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="text-xs font-black truncate">
+                                {m.name.replace('Gemini ', '')}
+                              </span>
+                              <span
+                                className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full shrink-0 flex items-center gap-1 ${
+                                  isFree
+                                    ? isSelected ? 'bg-kiwi/30 text-white' : 'bg-kiwi/15 text-kiwi border border-kiwi/30'
+                                    : isModerate
+                                    ? isSelected ? 'bg-yellow-500/30 text-yellow-200' : 'bg-yellow-100 text-yellow-800 border border-yellow-300'
+                                    : isBusy
+                                    ? isSelected ? 'bg-tomato/30 text-tomato-light' : 'bg-tomato-light text-tomato border border-tomato/30'
+                                    : 'bg-cream-dark text-forest/60'
+                                }`}
+                              >
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full ${
+                                    isFree ? 'bg-kiwi animate-pulse' : isModerate ? 'bg-yellow-500' : isBusy ? 'bg-tomato' : 'bg-gray-400'
+                                  }`}
+                                />
+                                {isFree ? 'Free' : isModerate ? 'Moderate' : isBusy ? 'Busy' : 'Offline'}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between mt-2 pt-1 border-t border-black/5 text-[10px]">
+                              <span className={`font-semibold ${isSelected ? 'text-white/70' : 'text-forest/60'}`}>
+                                {m.latencyMs ? `~${m.latencyMs}ms` : m.speed}
+                              </span>
+                              {m.isRecommended && (
+                                <span className={`text-[9px] font-extrabold ${isSelected ? 'text-sunshine' : 'text-carrot'}`}>
+                                  Fastest
+                                </span>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   {/* TWO SEPARATE BUTTONS */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                     {/* BUTTON 1: Extract Warranty Data */}
@@ -454,6 +651,12 @@ export default function UploadBillPage() {
                 </div>
               </div>
 
+              {/* Live Elapsed Timer */}
+              <div className="flex items-center justify-center gap-2 text-sm font-bold text-forest/80">
+                <Timer className="w-4 h-4 text-carrot animate-pulse" />
+                <span>Elapsed: {formatTime(elapsedSeconds)}</span>
+              </div>
+
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sunshine-light border border-sunshine/60 text-forest text-xs font-bold">
                 <Sparkles className="w-4 h-4 text-carrot animate-bounce" />
                 <span>Powered by Tesseract OCR & Multi-Format PDF Parser</span>
@@ -501,10 +704,10 @@ export default function UploadBillPage() {
                 </div>
 
                 {/* Document Metadata Summary Line */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-1">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-xs pt-1">
                   <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm border border-white/10">
                     <div className="text-white/60 font-medium text-[10px] uppercase">Document Type</div>
-                    <div className="font-extrabold text-yellow-300 mt-0.5">{genericData.documentType}</div>
+                    <div className="font-extrabold text-yellow-300 mt-0.5 truncate">{genericData.documentType}</div>
                   </div>
                   <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm border border-white/10">
                     <div className="text-white/60 font-medium text-[10px] uppercase">Match Confidence</div>
@@ -512,11 +715,21 @@ export default function UploadBillPage() {
                   </div>
                   <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm border border-white/10">
                     <div className="text-white/60 font-medium text-[10px] uppercase">Characters & Words</div>
-                    <div className="font-bold text-white mt-0.5">{genericData.charCount.toLocaleString()} chars &bull; {genericData.wordCount} words</div>
+                    <div className="font-bold text-white mt-0.5 truncate">{genericData.charCount.toLocaleString()} chars &bull; {genericData.wordCount} words</div>
                   </div>
                   <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm border border-white/10">
-                    <div className="text-white/60 font-medium text-[10px] uppercase">Extraction Method</div>
-                    <div className="font-semibold text-white/90 text-[11px] truncate mt-0.5">{genericData.extractionMethod}</div>
+                    <div className="text-white/60 font-medium text-[10px] uppercase">AI Model Used</div>
+                    <div className="font-extrabold text-sunshine text-[11px] truncate mt-0.5 flex items-center gap-1">
+                      <Cpu className="w-3.5 h-3.5" />
+                      {genericData.modelUsed || 'Gemini AI'}
+                    </div>
+                  </div>
+                  <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm border border-white/10">
+                    <div className="text-white/60 font-medium text-[10px] uppercase">Processing Time</div>
+                    <div className="font-extrabold text-yellow-300 mt-0.5 flex items-center gap-1.5">
+                      <Timer className="w-3.5 h-3.5" />
+                      {genericData.timeTakenMs ? `${(genericData.timeTakenMs / 1000).toFixed(1)}s` : totalTimeTaken !== null ? formatTime(totalTimeTaken) : '<2s'}
+                    </div>
                   </div>
                 </div>
 
@@ -775,23 +988,30 @@ export default function UploadBillPage() {
                       <FileText className="w-6 h-6" />
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="text-base font-bold text-forest truncate max-w-xs sm:max-w-md">
                           {selectedFile?.name || 'Uploaded Document'}
                         </h3>
-                        {extractedData?.extractionMethod === 'PDF Direct Text' ? (
-                          <span className="px-2 py-0.5 rounded-full bg-kiwi/15 border border-kiwi/30 text-kiwi text-[10px] font-bold">
-                            ✨ PDF Native Text
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-full bg-carrot/15 border border-carrot/30 text-carrot text-[10px] font-bold">
-                            ⚡ Tesseract Neural OCR
-                          </span>
-                        )}
+                        <span className="px-2.5 py-0.5 rounded-full bg-forest text-sunshine text-[10px] font-extrabold flex items-center gap-1 shadow-xs">
+                          <Cpu className="w-3 h-3 text-carrot" />
+                          {extractedData?.modelUsed || 'Gemini 3.1 Flash Lite'}
+                        </span>
                       </div>
-                      <p className="text-xs text-forest/60 mt-0.5">
-                        {selectedFile?.size ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB` : ''} &bull;{' '}
-                        {extractedCount > 0 ? `${extractedCount} of 7 key fields auto-extracted` : 'Standard defaults pre-filled'}
+                      <p className="text-xs text-forest/60 mt-0.5 flex items-center gap-2 flex-wrap">
+                        <span>{selectedFile?.size ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB` : ''}</span>
+                        <span>&bull;</span>
+                        <span>{extractedCount > 0 ? `${extractedCount} of 7 key fields auto-extracted` : 'Standard defaults pre-filled'}</span>
+                        {extractedData?.timeTakenMs ? (
+                          <span className="inline-flex items-center gap-1 text-carrot font-bold bg-carrot/10 px-2 py-0.5 rounded-md">
+                            <Timer className="w-3 h-3" />
+                            {(extractedData.timeTakenMs / 1000).toFixed(1)}s
+                          </span>
+                        ) : totalTimeTaken !== null ? (
+                          <span className="inline-flex items-center gap-1 text-carrot font-bold bg-carrot/10 px-2 py-0.5 rounded-md">
+                            <Timer className="w-3 h-3" />
+                            {formatTime(totalTimeTaken)}
+                          </span>
+                        ) : null}
                       </p>
                     </div>
                   </div>

@@ -61,6 +61,17 @@ export interface DocumentItem {
   uploadedAt: string;
 }
 
+export interface AIModelStatus {
+  id: string;
+  name: string;
+  description: string;
+  status: 'free' | 'moderate' | 'busy' | 'offline';
+  statusLabel: string;
+  latencyMs?: number;
+  badgeColor: 'green' | 'yellow' | 'red' | 'gray';
+  isRecommended?: boolean;
+}
+
 export interface OCRResult {
   productName: string;
   brand: string;
@@ -72,7 +83,9 @@ export interface OCRResult {
   warrantyPeriod: string; // e.g. "12 Months" or "2 Years"
   rawText?: string;
   isFallback?: boolean;
-  extractionMethod?: 'PDF Direct Text' | 'Tesseract.js Engine';
+  extractionMethod?: string;
+  modelUsed?: string;
+  timeTakenMs?: number;
   fieldsExtracted?: {
     productName: boolean;
     brand: boolean;
@@ -115,7 +128,9 @@ export interface GenericOCRResult {
   rawText: string;
   charCount: number;
   wordCount: number;
-  extractionMethod: 'PDF Direct Text' | 'Tesseract.js Engine';
+  extractionMethod: string;
+  modelUsed?: string;
+  timeTakenMs?: number;
   entities: {
     prices: string[];
     dates: string[];

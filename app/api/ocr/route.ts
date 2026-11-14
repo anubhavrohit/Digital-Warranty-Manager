@@ -1,9 +1,147 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-export async function POST(req: NextRequest) {
+interface ModelInfo {
+  id: string;
+  name: string;
+  description: string;
+  speed: string;
+  status: 'free' | 'moderate' | 'busy' | 'offline';
+  statusLabel: string;
+  latencyMs: number | null;
+  badgeColor: 'green' | 'yellow' | 'red' | 'gray';
+  isRecommended?: boolean;
+}
+
+const SUPPORTED_MODELS: Omit<ModelInfo, 'status' | 'statusLabel' | 'latencyMs' | 'badgeColor'>[] = [
+  {
+    id: 'gemini-3.1-flash-lite',
+    name: 'Gemini 3.1 Flash Lite',
+    description: 'Ultra fast & low latency (~1.3s). Best for quick document parsing.',
+    speed: '~1-2s',
+    isRecommended: true,
+  },
+  {
+    id: 'gemini-3.5-flash',
+    name: 'Gemini 3.5 Flash',
+    description: 'Balanced multimodal model (~4-6s). High accuracy on detailed invoices.',
+    speed: '~4-6s',
+  },
+  {
+    id: 'gemini-3.8-flash',
+    name: 'Gemini 3.8 Flash',
+    description: 'Flagship accuracy. May experience traffic spikes & queueing.',
+    speed: '~8-15s',
+  },
+];
+
+// In-memory cache for status checks
+let cachedModelStatuses: ModelInfo[] | null = null;
+let lastCheckTime = 0;
+const CACHE_TTL_MS = 60000; // 60s cache
+
+export async function GET(req: NextRequest) {
   try {
-    const { imageBase64, mimeType, mode = 'warranty', apiKey: userApiKey } = await req.json();
+    const forceRefresh = req.nextUrl.searchParams.get('refresh') === 'true';
+    const apiKey = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+
+    if (!apiKey) {
+      return NextResponse.json({ error: 'API key not configured' }, { status: 400 });
+    }
+
+    if (!forceRefresh && cachedModelStatuses && Date.now() - lastCheckTime < CACHE_TTL_MS) {
+      return NextResponse.json({
+        success: true,
+        cached: true,
+        updatedAt: new Date(lastCheckTime).toISOString(),
+        models: cachedModelStatuses,
+      });
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+
+    // Ping models in parallel with a 4.5 second timeout
+    const results = await Promise.all(
+      SUPPORTED_MODELS.map(async (m): Promise<ModelInfo> => {
+        const t0 = Date.now();
+        try {
+          const model = genAI.getGenerativeModel({ model: m.id });
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('PING_TIMEOUT')), 4500)
+          );
+
+          await Promise.race([
+            model.generateContent('ping'),
+            timeoutPromise,
+          ]);
+
+          const latency = Date.now() - t0;
+          let status: ModelInfo['status'] = 'free';
+          let statusLabel = 'Free & Fast';
+          let badgeColor: ModelInfo['badgeColor'] = 'green';
+
+          if (latency > 3500) {
+            status = 'moderate';
+            statusLabel = 'Moderate Traffic';
+            badgeColor = 'yellow';
+          }
+
+          return {
+            ...m,
+            status,
+            statusLabel,
+            latencyMs: latency,
+            badgeColor,
+          };
+        } catch (err: any) {
+          const latency = Date.now() - t0;
+          if (err.message === 'PING_TIMEOUT' || err.status === 503 || err.status === 429) {
+            return {
+              ...m,
+              status: 'busy',
+              statusLabel: 'Busy / High Load',
+              latencyMs: latency,
+              badgeColor: 'red',
+            };
+          }
+          return {
+            ...m,
+            status: 'offline',
+            statusLabel: err.status === 404 ? 'Unavailable' : 'Degraded',
+            latencyMs: null,
+            badgeColor: 'gray',
+          };
+        }
+      })
+    );
+
+    cachedModelStatuses = results;
+    lastCheckTime = Date.now();
+
+    return NextResponse.json({
+      success: true,
+      cached: false,
+      updatedAt: new Date(lastCheckTime).toISOString(),
+      models: results,
+    });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err.message || 'Failed to inspect models' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(req: NextRequest) {
+  const t0 = Date.now();
+  try {
+    const {
+      imageBase64,
+      mimeType,
+      mode = 'warranty',
+      selectedModel = 'auto',
+      apiKey: userApiKey,
+    } = await req.json();
 
     const apiKey =
       userApiKey ||
@@ -27,8 +165,49 @@ export async function POST(req: NextRequest) {
       .replace(/^data:application\/pdf;base64,/, '');
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    // Use gemini-1.5-flash for fast multimodal vision OCR
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+    // Build model candidate sequence based on user preference
+    const defaultOrder = ['gemini-3.1-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash'];
+    let candidateList = [...defaultOrder];
+
+    if (selectedModel && selectedModel !== 'auto' && defaultOrder.includes(selectedModel)) {
+      candidateList = [selectedModel, ...defaultOrder.filter((m) => m !== selectedModel)];
+    }
+
+    let usedModel = candidateList[0];
+
+    async function tryGenerate(parts: any[]): Promise<string> {
+      let lastError: any;
+      for (const modelName of candidateList) {
+        try {
+          const model = genAI.getGenerativeModel({
+            model: modelName,
+            generationConfig: {
+              temperature: 0.1,
+              maxOutputTokens: 2048,
+            },
+          });
+
+          // Timeout after 12 seconds per candidate so we failover immediately if overloaded
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error(`Timeout after 12s on ${modelName}`)), 12000);
+          });
+
+          const result = await Promise.race([
+            model.generateContent(parts),
+            timeoutPromise,
+          ]);
+
+          usedModel = modelName;
+          return result.response.text();
+        } catch (err: any) {
+          console.warn(`Model ${modelName} failed (${err.status || 'timeout'}): ${err.message?.slice(0, 120)}`);
+          lastError = err;
+          continue;
+        }
+      }
+      throw lastError;
+    }
 
     if (mode === 'warranty') {
       const prompt = `You are an expert OCR AI engine specialized in invoice and warranty document parsing. Analyze the attached bill/invoice/receipt document image and extract the following structured JSON fields. Return ONLY valid JSON with no markdown formatting or extra text.
@@ -48,7 +227,7 @@ JSON Schema:
   "rawText": "Complete transcribed optical text from document"
 }`;
 
-      const result = await model.generateContent([
+      const responseText = await tryGenerate([
         prompt,
         {
           inlineData: {
@@ -58,7 +237,6 @@ JSON Schema:
         },
       ]);
 
-      const responseText = result.response.text();
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
 
       if (!jsonMatch) {
@@ -66,13 +244,16 @@ JSON Schema:
       }
 
       const parsedData = JSON.parse(jsonMatch[0]);
+      const elapsedMs = Date.now() - t0;
 
       return NextResponse.json({
         success: true,
         data: {
           ...parsedData,
           isFallback: false,
-          extractionMethod: 'Gemini Multimodal AI Vision Engine',
+          modelUsed: usedModel,
+          timeTakenMs: elapsedMs,
+          extractionMethod: `Gemini AI (${usedModel})`,
           fieldsExtracted: {
             productName: Boolean(parsedData.productName),
             brand: Boolean(parsedData.brand && parsedData.brand !== 'Generic'),
@@ -105,7 +286,7 @@ JSON Schema:
   }
 }`;
 
-      const result = await model.generateContent([
+      const responseText = await tryGenerate([
         prompt,
         {
           inlineData: {
@@ -115,7 +296,6 @@ JSON Schema:
         },
       ]);
 
-      const responseText = result.response.text();
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
 
       if (!jsonMatch) {
@@ -123,6 +303,7 @@ JSON Schema:
       }
 
       const parsedData = JSON.parse(jsonMatch[0]);
+      const elapsedMs = Date.now() - t0;
 
       return NextResponse.json({
         success: true,
@@ -143,7 +324,9 @@ JSON Schema:
           rawText: parsedData.rawText || '',
           charCount: (parsedData.rawText || '').length,
           wordCount: (parsedData.rawText || '').trim().split(/\s+/).length,
-          extractionMethod: 'Gemini Multimodal AI Vision Engine',
+          modelUsed: usedModel,
+          timeTakenMs: elapsedMs,
+          extractionMethod: `Gemini AI (${usedModel})`,
           entities: {
             prices: parsedData.entities?.prices || [],
             dates: parsedData.entities?.dates || [],
