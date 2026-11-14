@@ -65,9 +65,10 @@ export interface AIModelStatus {
   id: string;
   name: string;
   description: string;
+  speed?: string;
   status: 'free' | 'moderate' | 'busy' | 'offline';
   statusLabel: string;
-  latencyMs?: number;
+  latencyMs?: number | null;
   badgeColor: 'green' | 'yellow' | 'red' | 'gray';
   isRecommended?: boolean;
 }

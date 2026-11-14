@@ -176,7 +176,7 @@ export async function POST(req: NextRequest) {
 
     let usedModel = candidateList[0];
 
-    async function tryGenerate(parts: any[]): Promise<string> {
+    const tryGenerate = async (parts: any[]): Promise<string> => {
       let lastError: any;
       for (const modelName of candidateList) {
         try {
