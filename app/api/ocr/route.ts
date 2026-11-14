@@ -40,6 +40,45 @@ let cachedModelStatuses: ModelInfo[] | null = null;
 let lastCheckTime = 0;
 const CACHE_TTL_MS = 60000; // 60s cache
 
+/**
+ * Robust JSON sanitizer and parser to prevent OCR failures
+ * caused by markdown fences, trailing commas, or control characters.
+ */
+function parseAndSanitizeJSON(raw: string): any {
+  if (!raw || typeof raw !== 'string') {
+    throw new Error('AI returned an empty or invalid text response');
+  }
+
+  // 1. Strip markdown fences (```json ... ```)
+  let clean = raw.trim()
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/```$/i, '')
+    .trim();
+
+  // 2. Direct JSON parse
+  try {
+    return JSON.parse(clean);
+  } catch {
+    // 3. Extract outermost { ... }
+    const firstBrace = clean.indexOf('{');
+    const lastBrace = clean.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      const slice = clean.slice(firstBrace, lastBrace + 1);
+      try {
+        return JSON.parse(slice);
+      } catch {
+        // 4. Remove trailing commas before } or ] and illegal control characters
+        const sanitized = slice
+          .replace(/,\s*([}\]])/g, '$1')
+          .replace(/[\u0000-\u001F]+/g, ' ');
+        return JSON.parse(sanitized);
+      }
+    }
+    throw new Error('Unable to extract valid structured JSON from AI output');
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
     const forceRefresh = req.nextUrl.searchParams.get('refresh') === 'true';
@@ -150,7 +189,7 @@ export async function POST(req: NextRequest) {
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'Gemini AI API Key not configured. Please enter a key or set GEMINI_API_KEY.' },
+        { error: 'Gemini AI API Key not configured. Please set GEMINI_API_KEY in environment variables.' },
         { status: 400 }
       );
     }
@@ -184,13 +223,14 @@ export async function POST(req: NextRequest) {
             model: modelName,
             generationConfig: {
               temperature: 0.1,
+              responseMimeType: 'application/json', // Enforce strict JSON output from Gemini
               maxOutputTokens: 2048,
             },
           });
 
-          // Timeout after 12 seconds per candidate so we failover immediately if overloaded
+          // Timeout after 14 seconds per candidate so we failover immediately if overloaded
           const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error(`Timeout after 12s on ${modelName}`)), 12000);
+            setTimeout(() => reject(new Error(`Timeout after 14s on ${modelName}`)), 14000);
           });
 
           const result = await Promise.race([
@@ -207,23 +247,25 @@ export async function POST(req: NextRequest) {
         }
       }
       throw lastError;
-    }
+    };
 
     if (mode === 'warranty') {
-      const prompt = `You are an expert OCR AI engine specialized in invoice and warranty document parsing. Analyze the attached bill/invoice/receipt document image and extract the following structured JSON fields. Return ONLY valid JSON with no markdown formatting or extra text.
+      const prompt = `You are an expert OCR AI engine specialized in document parsing (bills, invoices, receipts, warranty certificates, ID/membership cards, service records, and general documents).
+Analyze the attached document image and extract the following structured JSON fields.
+If a field is not present in the document, provide a sensible default or empty string/0 as indicated in the schema.
+Never refuse to parse or return conversational text. Always return valid JSON matching this schema:
 
-JSON Schema:
 {
-  "productName": "Exact full name of product purchased",
-  "brand": "Manufacturer or brand name",
+  "productName": "Full name of product/item, or title/name of the document holder/service",
+  "brand": "Manufacturer, brand, issuing organization, or 'Generic'",
   "category": "One of: Electronics | Appliances | Mobile | Laptop | Gaming | Furniture | Vehicle | Home | Other",
-  "purchaseDate": "YYYY-MM-DD",
-  "warrantyPeriod": "e.g. 1 Year, 2 Years, 6 Months",
-  "price": 14999.00,
-  "invoiceNumber": "Invoice or order number if present, else empty string",
-  "vendor": "Store or seller name (e.g. Amazon India, Croma)",
-  "serialNumber": "Serial number or IMEI if present, else empty string",
-  "notes": "Extracted warranty policy terms and key details",
+  "purchaseDate": "YYYY-MM-DD (or issue/valid date if invoice date is absent, else today's date)",
+  "warrantyPeriod": "e.g. 1 Year, 2 Years, 6 Months, or 'Standard' if not specified",
+  "price": 0.0,
+  "invoiceNumber": "Invoice/order/reference/ID number if present, else empty string",
+  "vendor": "Store, seller, issuer, or institution name",
+  "serialNumber": "Serial number, IMEI, or unique ID number if present, else empty string",
+  "notes": "Key details, policy terms, or summary of document",
   "rawText": "Complete transcribed optical text from document"
 }`;
 
@@ -237,52 +279,59 @@ JSON Schema:
         },
       ]);
 
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-
-      if (!jsonMatch) {
-        throw new Error('AI response did not contain valid JSON');
-      }
-
-      const parsedData = JSON.parse(jsonMatch[0]);
+      const parsedData = parseAndSanitizeJSON(responseText);
       const elapsedMs = Date.now() - t0;
+
+      const safeData = {
+        productName: parsedData.productName || 'Scanned Document',
+        brand: parsedData.brand || 'Generic',
+        category: parsedData.category || 'Electronics',
+        purchaseDate: parsedData.purchaseDate || new Date().toISOString().split('T')[0],
+        warrantyPeriod: parsedData.warrantyPeriod || '1 Year',
+        price: typeof parsedData.price === 'number' ? parsedData.price : parseFloat(parsedData.price) || 0,
+        invoiceNumber: parsedData.invoiceNumber || '',
+        vendor: parsedData.vendor || 'Official Store',
+        serialNumber: parsedData.serialNumber || '',
+        notes: parsedData.notes || '',
+        rawText: parsedData.rawText || '',
+      };
 
       return NextResponse.json({
         success: true,
         data: {
-          ...parsedData,
+          ...safeData,
           isFallback: false,
           modelUsed: usedModel,
           timeTakenMs: elapsedMs,
           extractionMethod: `Gemini AI (${usedModel})`,
           fieldsExtracted: {
-            productName: Boolean(parsedData.productName),
-            brand: Boolean(parsedData.brand && parsedData.brand !== 'Generic'),
-            serialNumber: Boolean(parsedData.serialNumber),
-            purchaseDate: Boolean(parsedData.purchaseDate),
-            price: Number(parsedData.price) > 0,
-            invoiceNumber: Boolean(parsedData.invoiceNumber),
-            vendor: Boolean(parsedData.vendor && parsedData.vendor !== 'Official Store'),
+            productName: Boolean(safeData.productName && safeData.productName !== 'Scanned Document'),
+            brand: Boolean(safeData.brand && safeData.brand !== 'Generic'),
+            serialNumber: Boolean(safeData.serialNumber),
+            purchaseDate: Boolean(safeData.purchaseDate),
+            price: Number(safeData.price) > 0,
+            invoiceNumber: Boolean(safeData.invoiceNumber),
+            vendor: Boolean(safeData.vendor && safeData.vendor !== 'Official Store'),
           },
         },
       });
     } else {
       // Generic OCR & Deep Scan Mode
-      const prompt = `You are a high-precision generic OCR AI engine. Perform complete optical text extraction and deep document classification on the attached file image. Return ONLY valid JSON matching this schema with no extra text.
+      const prompt = `You are a high-precision document OCR and classification AI engine. Perform complete optical text extraction and classify the document. Always return valid JSON matching this schema:
 
-JSON Schema:
 {
-  "documentType": "One of: Tax Invoice / E-Bill | Retail Store Receipt | Warranty Certificate | Shipping & Delivery Label | Utility & Telecom Bill | Vehicle Service & Reg | Salary & Payslip | Medical & Pharmacy Bill | Insurance Policy | General Document",
-  "confidence": 98,
+  "documentType": "One of: Tax Invoice / E-Bill | Retail Store Receipt | Warranty Certificate | Shipping & Delivery Label | Utility & Telecom Bill | Vehicle Service & Reg | Salary & Payslip | Medical & Pharmacy Bill | Insurance Policy | Identity Card / ID | General Document",
+  "confidence": 95,
   "indicators": ["Reason indicator 1", "Reason indicator 2"],
   "summary": "Short natural language summary of document content",
   "rawText": "Full complete transcribed optical text from document",
   "entities": {
-    "prices": ["₹24,999.00"],
-    "dates": ["YYYY-MM-DD or DD/MM/YYYY"],
-    "identifiers": ["Invoice #: INV-123", "GSTIN: 27AAAAA0000A1Z5"],
-    "contacts": ["Phone: 9876543210", "Email: shop@store.com"],
-    "products": ["Item 1 description", "Item 2 description"],
-    "organizations": ["Store Name / Company Name"]
+    "prices": ["₹1,499.00"],
+    "dates": ["YYYY-MM-DD"],
+    "identifiers": ["INV-123", "ID-456"],
+    "contacts": ["phone or email"],
+    "products": ["Item description"],
+    "organizations": ["Store/Company/Institution"]
   }
 }`;
 
@@ -296,14 +345,18 @@ JSON Schema:
         },
       ]);
 
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-
-      if (!jsonMatch) {
-        throw new Error('AI response did not contain valid JSON');
-      }
-
-      const parsedData = JSON.parse(jsonMatch[0]);
+      const parsedData = parseAndSanitizeJSON(responseText);
       const elapsedMs = Date.now() - t0;
+
+      const rawEntities = parsedData.entities || {};
+      const safeEntities = {
+        prices: Array.isArray(rawEntities.prices) ? rawEntities.prices : [],
+        dates: Array.isArray(rawEntities.dates) ? rawEntities.dates : [],
+        identifiers: Array.isArray(rawEntities.identifiers) ? rawEntities.identifiers : [],
+        contacts: Array.isArray(rawEntities.contacts) ? rawEntities.contacts : [],
+        products: Array.isArray(rawEntities.products) ? rawEntities.products : [],
+        organizations: Array.isArray(rawEntities.organizations) ? rawEntities.organizations : [],
+      };
 
       return NextResponse.json({
         success: true,
@@ -312,29 +365,22 @@ JSON Schema:
           classification: {
             type: parsedData.documentType || 'General Document',
             confidence: parsedData.confidence || 95,
-            indicators: parsedData.indicators || ['Multimodal AI Vision Classification'],
+            indicators: Array.isArray(parsedData.indicators) ? parsedData.indicators : ['AI Document Classification'],
             features: {
-              hasTaxInfo: Boolean(parsedData.entities?.identifiers?.some((id: string) => /gstin|tax/i.test(id))),
-              hasPrices: Boolean(parsedData.entities?.prices?.length > 0),
-              hasDates: Boolean(parsedData.entities?.dates?.length > 0),
-              hasIdentifiers: Boolean(parsedData.entities?.identifiers?.length > 0),
-              hasContactInfo: Boolean(parsedData.entities?.contacts?.length > 0),
+              hasTaxInfo: Boolean(safeEntities.identifiers?.some((id: string) => /gstin|tax/i.test(id))),
+              hasPrices: safeEntities.prices.length > 0,
+              hasDates: safeEntities.dates.length > 0,
+              hasIdentifiers: safeEntities.identifiers.length > 0,
+              hasContactInfo: safeEntities.contacts.length > 0,
             },
           },
           rawText: parsedData.rawText || '',
           charCount: (parsedData.rawText || '').length,
-          wordCount: (parsedData.rawText || '').trim().split(/\s+/).length,
+          wordCount: (parsedData.rawText || '').trim().split(/\s+/).filter(Boolean).length,
           modelUsed: usedModel,
           timeTakenMs: elapsedMs,
           extractionMethod: `Gemini AI (${usedModel})`,
-          entities: {
-            prices: parsedData.entities?.prices || [],
-            dates: parsedData.entities?.dates || [],
-            identifiers: parsedData.entities?.identifiers || [],
-            contacts: parsedData.entities?.contacts || [],
-            products: parsedData.entities?.products || [],
-            organizations: parsedData.entities?.organizations || [],
-          },
+          entities: safeEntities,
           summary: parsedData.summary || 'Multimodal AI Vision Document Analysis',
         },
       });
@@ -343,7 +389,7 @@ JSON Schema:
     console.error('AI OCR Route Error:', err);
     let errorMessage = err.message || 'AI OCR processing failed.';
     if (errorMessage.includes('API_KEY_SERVICE_BLOCKED') || err.status === 403) {
-      errorMessage = 'Gemini AI Error (403 Forbidden): The provided API key is blocked or "Generative Language API" is disabled in Google Cloud Console / AI Studio for project 625421628083. Please enable the Generative Language API or generate a new key at https://aistudio.google.com/app/apikey.';
+      errorMessage = 'Gemini AI Error (403 Forbidden): The provided API key is blocked or "Generative Language API" is disabled. Please check your API key in AI Studio.';
     } else if (errorMessage.includes('API key not valid')) {
       errorMessage = 'Gemini AI Error: Invalid API key provided. Please generate a valid API key at https://aistudio.google.com/app/apikey.';
     }

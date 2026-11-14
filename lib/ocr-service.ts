@@ -68,6 +68,9 @@ async function prepareOptimizedImage(file: File): Promise<{ base64: string; mime
         fileToBase64(file).then((b) => resolve({ base64: b, mimeType: file.type || 'image/jpeg' }));
         return;
       }
+      // Fill solid white background so transparent PNGs/WebPs don't turn black
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, width, height);
       ctx.drawImage(img, 0, 0, width, height);
       resolve({
         base64: canvas.toDataURL('image/jpeg', 0.82),
@@ -193,6 +196,8 @@ async function renderPdfPageToCanvas(file: File): Promise<HTMLCanvasElement | nu
     const ctx = canvas.getContext('2d');
 
     if (!ctx) return null;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
     await page.render({ canvas, canvasContext: ctx, viewport }).promise;
 
     return canvas;

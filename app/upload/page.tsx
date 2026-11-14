@@ -238,10 +238,10 @@ export default function UploadBillPage() {
       setNotes(`OCR Extracted Warranty Period: ${result.warrantyPeriod}`);
 
       setStep('review');
-    } catch (err) {
+    } catch (err: any) {
       console.error('OCR Error:', err);
       setStep('upload');
-      setErrors({ form: 'Failed to process document. Please try again or enter details manually.' });
+      setErrors({ form: err?.message || 'Failed to process document. Please try again or enter details manually.' });
     }
   };
 
@@ -262,10 +262,10 @@ export default function UploadBillPage() {
 
       setGenericData(result);
       setStep('review');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Generic OCR Error:', err);
       setStep('upload');
-      setErrors({ form: 'Generic OCR scan failed. Please try again with another file.' });
+      setErrors({ form: err?.message || 'Generic OCR scan failed. Please try again with another file.' });
     }
   };
 

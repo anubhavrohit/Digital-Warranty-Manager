@@ -108,6 +108,7 @@ export type DocumentClassificationType =
   | 'Salary & Payslip'
   | 'Medical & Pharmacy Bill'
   | 'Insurance Policy'
+  | 'Identity Card / ID'
   | 'General Document';
 
 export interface ClassificationDetails {
