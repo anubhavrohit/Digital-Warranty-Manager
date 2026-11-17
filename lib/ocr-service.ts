@@ -701,7 +701,7 @@ export function inferCategoryFromProduct(productName: string, brand: string): Pr
   if (/ac|air conditioner|refrigerator|fridge|washing machine|microwave|oven|dishwasher|cooler|geyser/i.test(combined)) {
     return 'Appliances';
   }
-  if (/playstation|xbox|nintendo|ps5|ps4|gaming|gpu|graphics card|joystick/i.test(combined)) {
+  if (/playstation|xbox|nintendo|ps5|ps4|gaming|gpu|graphics card|joystick|gamepad|controller|cosmic byte|razer/i.test(combined)) {
     return 'Gaming';
   }
   if (/car|bike|motorcycle|scooter|vehicle|ev|bullet|honda|maruti|hyundai|tvs|hero/i.test(combined)) {

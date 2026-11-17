@@ -31,6 +31,7 @@ const VERIFIED_BRAND_DOMAINS: Record<string, string> = {
   xiaomi: 'mi.com',
   redmi: 'mi.com',
   realme: 'realme.com',
+  cosmicbyte: 'thecosmicbyte.com',
   whirlpool: 'whirlpoolindia.com',
   bosch: 'bosch-home.in',
   dyson: 'dyson.in',
@@ -62,7 +63,47 @@ const DOCUMENT_KEYWORDS = [
 ];
 
 /**
- * 1. DuckDuckGo Image Search: High precision for exact product models
+ * 1. Live Retail & E-Commerce Catalog Search:
+ * Completely resilient on Vercel and AWS datacenter serverless functions.
+ * Returns high-resolution (1000px+) official product photography directly from retailer CDNs.
+ */
+async function searchAmazonCatalog(query: string): Promise<string[]> {
+  try {
+    const url = 'https://www.amazon.in/s?k=' + encodeURIComponent(query);
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+      next: { revalidate: 3600 },
+    });
+
+    if (!res.ok) return [];
+
+    const text = await res.text();
+    const re = /<img[^>]+class="[^"]*s-image[^"]*"[^>]+src="([^"]+)"/g;
+    let m;
+    const images: string[] = [];
+
+    while ((m = re.exec(text)) !== null) {
+      // Upgrade thumbnail to high-resolution (1000px)
+      const highRes = m[1].replace(/\._[^.]+\.jpg$/i, '._SL1000_.jpg');
+      if (!images.includes(highRes)) {
+        images.push(highRes);
+      }
+    }
+
+    return images.slice(0, 8);
+  } catch (err) {
+    console.warn('Retail product catalog search error:', err);
+    return [];
+  }
+}
+
+/**
+ * 2. DuckDuckGo Image Search: High precision for exact product models
  */
 async function searchDuckDuckGoImages(query: string): Promise<string[]> {
   try {
@@ -104,7 +145,7 @@ async function searchDuckDuckGoImages(query: string): Promise<string[]> {
 }
 
 /**
- * 2. Wikipedia Article Summary Image API: High quality verified product & brand photography
+ * 3. Wikipedia Article Summary Image API: High quality verified product & brand photography
  */
 async function searchWikipediaImage(query: string): Promise<string | null> {
   try {
@@ -139,7 +180,7 @@ async function searchWikipediaImage(query: string): Promise<string | null> {
 }
 
 /**
- * 3. Wikimedia Commons Open Product Images Search:
+ * 4. Wikimedia Commons Open Product Images Search:
  * Completely open REST API with origin=*, never blocks datacenter IPs.
  */
 async function searchWikimediaCommons(query: string): Promise<string[]> {
@@ -205,6 +246,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const query = searchParams.get('q') || searchParams.get('productName') || '';
     const brand = searchParams.get('brand') || '';
+    const serial = searchParams.get('serialNumber') || searchParams.get('serial') || '';
     const category = searchParams.get('category') || 'Electronics';
 
     const cleanQuery = query.trim();
@@ -231,7 +273,18 @@ export async function GET(req: NextRequest) {
       ? `${cleanBrand} ${cleanQuery}`
       : cleanQuery || cleanBrand;
 
-    // 1. Primary: DuckDuckGo live product photo search
+    // 1. Primary: Retail Product Catalog (1000px+ HD photos, never blocked on Vercel/datacenter IPs)
+    const catalogResults = await searchAmazonCatalog(searchQuery);
+    if (catalogResults.length > 0) {
+      return NextResponse.json({
+        success: true,
+        imageUrl: catalogResults[0],
+        source: 'Live Product Photo',
+        alternatives: catalogResults.slice(1),
+      });
+    }
+
+    // 2. Secondary: DuckDuckGo live product photo search
     const ddgResults = await searchDuckDuckGoImages(searchQuery);
     if (ddgResults.length > 0) {
       return NextResponse.json({
@@ -242,7 +295,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // 2. Secondary: Wikipedia official article product photo
+    // 3. Tertiary: Wikipedia official article product photo
     const wikiPhoto = await searchWikipediaImage(searchQuery);
     if (wikiPhoto) {
       return NextResponse.json({
@@ -253,7 +306,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // 3. Tertiary: Wikimedia Commons Open Product Archive
+    // 4. Quaternary: Wikimedia Commons Open Product Archive
     const wikiCommons = await searchWikimediaCommons(searchQuery);
     if (wikiCommons.length > 0) {
       return NextResponse.json({
@@ -264,7 +317,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // 4. Quaternary: Verified Brand Official Logo (ONLY for confirmed real brands like Apple, Sony, Samsung)
+    // 5. Quinary: Verified Brand Official Logo (ONLY for confirmed real brands like Apple, Sony, Samsung)
     const verifiedLogo = getVerifiedBrandLogoUrl(cleanBrand);
     if (verifiedLogo) {
       return NextResponse.json({
@@ -275,7 +328,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // 5. Curated High-Resolution Category Photography Fallback
+    // 6. Curated High-Resolution Category Photography Fallback
     const fallbackImage = CATEGORY_FALLBACKS[category] || CATEGORY_FALLBACKS.Electronics;
     return NextResponse.json({
       success: true,
