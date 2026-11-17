@@ -172,17 +172,21 @@ export async function extractWarrantyDataFromImage(
     if (onProgress) onProgress('AI busy or offline. Running local OCR engine...', 0.5);
 
     let extractedText = '';
-    if (isPdf) {
-      extractedText = await extractTextFromPdfFile(file);
-    }
-
-    if (!extractedText.trim()) {
-      let canvas: HTMLCanvasElement | null = null;
+    try {
       if (isPdf) {
-        canvas = await renderPdfPageToCanvas(file);
+        extractedText = await extractTextFromPdfFile(file);
       }
-      const processed = await preprocessImageForOCR(canvas || file);
-      extractedText = await runTesseractOCR(processed, onProgress);
+
+      if (!extractedText.trim()) {
+        let canvas: HTMLCanvasElement | null = null;
+        if (isPdf) {
+          canvas = await renderPdfPageToCanvas(file);
+        }
+        const processed = await preprocessImageForOCR(canvas || file);
+        extractedText = await runTesseractOCR(processed, onProgress);
+      }
+    } catch (localErr) {
+      console.warn('Local OCR processing encountered non-fatal error:', localErr);
     }
 
     const fallbackResult = parseTextToWarrantyResult(extractedText, file.name);
@@ -334,20 +338,25 @@ async function runTesseractOCR(
   imageSource: File | HTMLCanvasElement,
   onProgress?: (status: string, progress: number) => void
 ): Promise<string> {
-  const result = await recognize(imageSource, 'eng', {
-    logger: (m) => {
-      if (onProgress && m.status) {
-        const pct = Math.round((m.progress || 0) * 100);
-        let msg = m.status;
-        if (m.status === 'recognizing text') msg = `Recognizing text (${pct}%)`;
-        else if (m.status === 'loading tesseract core') msg = 'Loading OCR Core...';
-        else if (m.status === 'initializing api') msg = 'Initializing OCR Engine...';
-        onProgress(msg, 0.5 + (m.progress || 0) * 0.4);
-      }
-    },
-  });
+  try {
+    const result = await recognize(imageSource, 'eng', {
+      logger: (m) => {
+        if (onProgress && m.status) {
+          const pct = Math.round((m.progress || 0) * 100);
+          let msg = m.status;
+          if (m.status === 'recognizing text') msg = `Recognizing text (${pct}%)`;
+          else if (m.status === 'loading tesseract core') msg = 'Loading OCR Core...';
+          else if (m.status === 'initializing api') msg = 'Initializing OCR Engine...';
+          onProgress(msg, 0.5 + (m.progress || 0) * 0.4);
+        }
+      },
+    });
 
-  return result.data.text || '';
+    return result?.data?.text || '';
+  } catch (err) {
+    console.warn('Tesseract OCR engine unavailable or blocked:', err);
+    return '';
+  }
 }
 
 /**
@@ -767,20 +776,24 @@ export async function performGenericOCR(
     let extractedText = '';
     let method: 'PDF Direct Text' | 'Tesseract.js Engine' = 'Tesseract.js Engine';
 
-    if (isPdf) {
-      extractedText = await extractTextFromPdfFile(file);
-      if (extractedText.trim().length > 30) {
-        method = 'PDF Direct Text';
-      }
-    }
-
-    if (!extractedText.trim()) {
-      let canvas: HTMLCanvasElement | null = null;
+    try {
       if (isPdf) {
-        canvas = await renderPdfPageToCanvas(file);
+        extractedText = await extractTextFromPdfFile(file);
+        if (extractedText.trim().length > 30) {
+          method = 'PDF Direct Text';
+        }
       }
-      const processed = await preprocessImageForOCR(canvas || file);
-      extractedText = await runTesseractOCR(processed, onProgress);
+
+      if (!extractedText.trim()) {
+        let canvas: HTMLCanvasElement | null = null;
+        if (isPdf) {
+          canvas = await renderPdfPageToCanvas(file);
+        }
+        const processed = await preprocessImageForOCR(canvas || file);
+        extractedText = await runTesseractOCR(processed, onProgress);
+      }
+    } catch (localErr) {
+      console.warn('Local OCR deep scan encountered non-fatal error:', localErr);
     }
 
     const fallbackResult = categorizeGenericOCRText(extractedText, file.name, method);

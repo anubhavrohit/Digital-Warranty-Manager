@@ -14,30 +14,86 @@ const CATEGORY_FALLBACKS: Record<string, string> = {
   Other: 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=800&auto=format&fit=crop&q=80',
 };
 
+// Verified official brand domains - ONLY used when exact verified brand is detected
+const VERIFIED_BRAND_DOMAINS: Record<string, string> = {
+  apple: 'apple.com',
+  samsung: 'samsung.com',
+  sony: 'sony.com',
+  lg: 'lg.com',
+  dell: 'dell.com',
+  hp: 'hp.com',
+  lenovo: 'lenovo.com',
+  asus: 'asus.com',
+  acer: 'acer.com',
+  boat: 'boat-lifestyle.com',
+  noise: 'gonoise.com',
+  oneplus: 'oneplus.com',
+  xiaomi: 'mi.com',
+  redmi: 'mi.com',
+  realme: 'realme.com',
+  whirlpool: 'whirlpoolindia.com',
+  bosch: 'bosch-home.in',
+  dyson: 'dyson.in',
+  philips: 'philips.com',
+  ikea: 'ikea.com',
+  amazon: 'amazon.com',
+  flipkart: 'flipkart.com',
+  croma: 'croma.com',
+  canon: 'canon.com',
+  nikon: 'nikon.com',
+  godrej: 'godrej.com',
+  voltas: 'voltas.com',
+  panasonic: 'panasonic.com',
+  bose: 'bose.com',
+  jbl: 'jbl.com',
+  logitech: 'logitech.com',
+  motorola: 'motorola.com',
+  tata: 'tatamotors.com',
+  maruti: 'marutisuzuki.com',
+  hyundai: 'hyundai.com',
+  honda: 'honda2wheelersindia.com',
+};
+
+// Document & non-product keywords to never query external web search for
+const DOCUMENT_KEYWORDS = [
+  'icard', 'i-card', 'idcard', 'id card', 'invoice', 'bill', 'receipt', 'tax invoice',
+  'cash memo', 'document', 'scanned', 'challan', 'statement', 'certificate', 'pass',
+  'salary', 'payslip', 'prescription', 'order', 'unknown', 'generic', 'other'
+];
+
+/**
+ * 1. DuckDuckGo Image Search: High precision for exact product models
+ */
 async function searchDuckDuckGoImages(query: string): Promise<string[]> {
   try {
     const tokenRes = await fetch('https://duckduckgo.com/?q=' + encodeURIComponent(query), {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       },
       next: { revalidate: 3600 },
     });
+
     const tokenHtml = await tokenRes.text();
     const tokenMatch = tokenHtml.match(/vqd=([0-9-]+)/);
     if (!tokenMatch) return [];
 
     const vqd = tokenMatch[1];
-    const imgRes = await fetch(`https://duckduckgo.com/i.js?l=us-en&o=json&q=${encodeURIComponent(query)}&vqd=${vqd}`, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      },
-      next: { revalidate: 3600 },
-    });
+    const imgRes = await fetch(
+      `https://duckduckgo.com/i.js?l=us-en&o=json&q=${encodeURIComponent(query)}&vqd=${vqd}`,
+      {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
+        next: { revalidate: 3600 },
+      }
+    );
 
     const data = await imgRes.json();
     const results = (data.results || [])
       .map((r: any) => r.image)
-      .filter((img: string) => typeof img === 'string' && img.startsWith('http') && !img.includes('.svg'))
+      .filter((img: string) => typeof img === 'string' && img.startsWith('http') && !img.includes('.svg') && !img.includes('.gif'))
       .slice(0, 6);
 
     return results;
@@ -47,21 +103,33 @@ async function searchDuckDuckGoImages(query: string): Promise<string[]> {
   }
 }
 
+/**
+ * 2. Wikipedia Article Summary Image API: High quality verified product & brand photography
+ */
 async function searchWikipediaImage(query: string): Promise<string | null> {
   try {
-    const url = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrlimit=3&prop=pageimages&piprop=thumbnail&pithumbsize=800&format=json&origin=*`;
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'WarrantyVault/1.0 (https://warrantyvault.app)' },
+    const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(
+      query
+    )}&format=json&origin=*&srlimit=1`;
+    const sRes = await fetch(searchUrl, {
+      headers: { 'User-Agent': 'WarrantyVaultApp/1.0 (contact@warrantyvault.app)' },
       next: { revalidate: 86400 },
     });
-    const data = await res.json();
-    const pages = data.query?.pages || {};
+    if (!sRes.ok) return null;
+    const sData = await sRes.json();
+    const firstTitle = sData.query?.search?.[0]?.title;
+    if (!firstTitle) return null;
 
-    for (const p of Object.values(pages) as any[]) {
-      const src = p.thumbnail?.source;
-      if (src && !src.includes('flag') && !src.includes('map') && !src.includes('.svg')) {
-        return src;
-      }
+    const sumUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(firstTitle)}`;
+    const sumRes = await fetch(sumUrl, {
+      headers: { 'User-Agent': 'WarrantyVaultApp/1.0 (contact@warrantyvault.app)' },
+      next: { revalidate: 86400 },
+    });
+    if (!sumRes.ok) return null;
+    const sumData = await sumRes.json();
+    const imgUrl = sumData.originalimage?.source || sumData.thumbnail?.source;
+    if (imgUrl && !imgUrl.endsWith('.svg') && !imgUrl.endsWith('.gif')) {
+      return imgUrl;
     }
     return null;
   } catch (err) {
@@ -70,10 +138,66 @@ async function searchWikipediaImage(query: string): Promise<string | null> {
   }
 }
 
-function getBrandLogoUrl(brand: string): string | null {
-  if (!brand || brand === 'Generic' || brand.length < 2) return null;
-  const clean = brand.toLowerCase().replace(/[^a-z0-9]/g, '');
-  return `https://www.google.com/s2/favicons?domain=${clean}.com&sz=256`;
+/**
+ * 3. Wikimedia Commons Open Product Images Search:
+ * Completely open REST API with origin=*, never blocks datacenter IPs.
+ */
+async function searchWikimediaCommons(query: string): Promise<string[]> {
+  try {
+    const url = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(
+      query
+    )}&gsrnamespace=6&gsrlimit=6&prop=imageinfo&iiprop=url|mime&format=json&origin=*`;
+
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'WarrantyVaultApp/1.0 (https://warrantyvault.app; contact@warrantyvault.app)',
+      },
+      next: { revalidate: 86400 },
+    });
+
+    if (!res.ok) return [];
+
+    const data = await res.json();
+    const pages = data.query?.pages || {};
+    const urls: string[] = [];
+
+    for (const p of Object.values(pages) as any[]) {
+      const info = p.imageinfo?.[0];
+      if (
+        info &&
+        info.url &&
+        (info.mime === 'image/jpeg' || info.mime === 'image/png' || info.mime === 'image/webp') &&
+        !info.url.includes('.svg') &&
+        !info.url.includes('.gif') &&
+        !info.url.toLowerCase().includes('flag') &&
+        !info.url.toLowerCase().includes('map')
+      ) {
+        urls.push(info.url);
+      }
+    }
+
+    return urls;
+  } catch (err) {
+    console.warn('Wikimedia Commons search failed:', err);
+    return [];
+  }
+}
+
+/**
+ * Verified Brand Logo (ONLY for confirmed recognized brands, NEVER for arbitrary strings)
+ */
+function getVerifiedBrandLogoUrl(brand: string): string | null {
+  if (!brand) return null;
+  const clean = brand.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+  if (!clean || clean === 'generic' || clean === 'other' || clean === 'unknown') return null;
+
+  for (const [key, domain] of Object.entries(VERIFIED_BRAND_DOMAINS)) {
+    if (clean === key || (key.length >= 4 && (clean.startsWith(key) || clean.endsWith(key)))) {
+      return `https://www.google.com/s2/favicons?domain=${domain}&sz=256`;
+    }
+  }
+
+  return null;
 }
 
 export async function GET(req: NextRequest) {
@@ -86,20 +210,28 @@ export async function GET(req: NextRequest) {
     const cleanQuery = query.trim();
     const cleanBrand = brand.trim();
 
-    if (!cleanQuery && !cleanBrand) {
+    // If query is empty or just generic document terms, return clean curated category photo
+    const isDocTerm =
+      !cleanQuery ||
+      DOCUMENT_KEYWORDS.some((kw) => cleanQuery.toLowerCase().includes(kw)) ||
+      (cleanBrand && DOCUMENT_KEYWORDS.some((kw) => cleanBrand.toLowerCase().includes(kw)));
+
+    if (isDocTerm && (!cleanBrand || cleanBrand.toLowerCase() === 'generic')) {
       return NextResponse.json({
         success: true,
         imageUrl: CATEGORY_FALLBACKS[category] || CATEGORY_FALLBACKS.Electronics,
-        source: 'Category Default',
+        source: 'Curated Category Photo',
         alternatives: [],
       });
     }
 
-    const searchQuery = cleanBrand && !cleanQuery.toLowerCase().includes(cleanBrand.toLowerCase())
+    // Build the most descriptive product query
+    const isBrandInQuery = cleanBrand && cleanQuery.toLowerCase().includes(cleanBrand.toLowerCase());
+    const searchQuery = cleanBrand && !isBrandInQuery
       ? `${cleanBrand} ${cleanQuery}`
-      : cleanQuery;
+      : cleanQuery || cleanBrand;
 
-    // 1. Try DuckDuckGo Image Search for real product photos
+    // 1. Primary: DuckDuckGo live product photo search
     const ddgResults = await searchDuckDuckGoImages(searchQuery);
     if (ddgResults.length > 0) {
       return NextResponse.json({
@@ -110,29 +242,40 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // 2. Try Wikipedia Page Thumbnail
-    const wikiImage = await searchWikipediaImage(searchQuery);
-    if (wikiImage) {
+    // 2. Secondary: Wikipedia official article product photo
+    const wikiPhoto = await searchWikipediaImage(searchQuery);
+    if (wikiPhoto) {
       return NextResponse.json({
         success: true,
-        imageUrl: wikiImage,
+        imageUrl: wikiPhoto,
         source: 'Wikipedia Product Archive',
         alternatives: [],
       });
     }
 
-    // 3. Try Brand Logo Favicon
-    const brandLogo = getBrandLogoUrl(cleanBrand);
-    if (brandLogo) {
+    // 3. Tertiary: Wikimedia Commons Open Product Archive
+    const wikiCommons = await searchWikimediaCommons(searchQuery);
+    if (wikiCommons.length > 0) {
       return NextResponse.json({
         success: true,
-        imageUrl: brandLogo,
-        source: 'Brand Logo',
+        imageUrl: wikiCommons[0],
+        source: 'Wikimedia Product Archive',
+        alternatives: wikiCommons.slice(1),
+      });
+    }
+
+    // 4. Quaternary: Verified Brand Official Logo (ONLY for confirmed real brands like Apple, Sony, Samsung)
+    const verifiedLogo = getVerifiedBrandLogoUrl(cleanBrand);
+    if (verifiedLogo) {
+      return NextResponse.json({
+        success: true,
+        imageUrl: verifiedLogo,
+        source: `${cleanBrand} Official Logo`,
         alternatives: [],
       });
     }
 
-    // 4. Fallback to curated high-resolution category photography
+    // 5. Curated High-Resolution Category Photography Fallback
     const fallbackImage = CATEGORY_FALLBACKS[category] || CATEGORY_FALLBACKS.Electronics;
     return NextResponse.json({
       success: true,
@@ -142,11 +285,14 @@ export async function GET(req: NextRequest) {
     });
   } catch (err: any) {
     console.error('Product image search API error:', err);
-    return NextResponse.json({
-      success: false,
-      error: err.message || 'Failed to fetch product photo',
-      imageUrl: CATEGORY_FALLBACKS.Electronics,
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: true,
+        imageUrl: CATEGORY_FALLBACKS.Electronics,
+        source: 'Curated Category Photo',
+        alternatives: [],
+      },
+      { status: 200 }
+    );
   }
 }
-

@@ -99,14 +99,14 @@ export async function GET(req: NextRequest) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
 
-    // Ping models in parallel with a 4.5 second timeout
+    // Ping models in parallel with a 6 second timeout
     const results = await Promise.all(
       SUPPORTED_MODELS.map(async (m): Promise<ModelInfo> => {
         const t0 = Date.now();
         try {
           const model = genAI.getGenerativeModel({ model: m.id });
           const timeoutPromise = new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('PING_TIMEOUT')), 4500)
+            setTimeout(() => reject(new Error('PING_TIMEOUT')), 6000)
           );
 
           await Promise.race([
