@@ -25,6 +25,7 @@ import {
   Eye,
   Edit3,
   Trash2,
+  ArrowRight,
 } from 'lucide-react';
 
 function ProductsContent() {
@@ -305,20 +306,25 @@ function ProductsContent() {
                             <StatusBadge status={itemStatus} size="sm" />
                           </td>
                           <td className="p-4 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <Link href={`/products/${item.id}`}>
-                                <button className="p-1.5 rounded-lg text-forest hover:bg-cream-light">
-                                  <Eye className="w-4 h-4" />
+                            <div className="flex items-center justify-end gap-1.5">
+                              <Link href={`/products/${item.id}`} className="group">
+                                <button className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-carrot to-orange-500 hover:from-orange-500 hover:to-carrot text-white font-extrabold text-xs flex items-center gap-1.5 transition-all shadow-xs hover:shadow-sm active:scale-[0.98]">
+                                  <span>View Details</span>
+                                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                                 </button>
                               </Link>
                               <Link href={`/products/${item.id}/edit`}>
-                                <button className="p-1.5 rounded-lg text-forest hover:bg-cream-light">
+                                <button
+                                  title="Edit"
+                                  className="p-1.5 rounded-xl text-forest/70 dark:text-cream/70 hover:text-forest dark:hover:text-white hover:bg-cream-light dark:hover:bg-white/10 transition-colors"
+                                >
                                   <Edit3 className="w-4 h-4" />
                                 </button>
                               </Link>
                               <button
                                 onClick={() => setDeleteId(item.id)}
-                                className="p-1.5 rounded-lg text-tomato hover:bg-tomato-light"
+                                title="Delete"
+                                className="p-1.5 rounded-xl text-forest/50 dark:text-cream/40 hover:text-tomato hover:bg-tomato-light/30 dark:hover:bg-rose-950/40 transition-colors"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>

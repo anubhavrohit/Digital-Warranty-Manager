@@ -119,9 +119,12 @@ export const NotificationsPopover: React.FC = () => {
                         <AlertTriangle className="w-4 h-4" />
                       )}
                     </div>
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <p className="text-xs font-bold text-forest">{n.title}</p>
                       <p className="text-xs text-forest/80 mt-0.5 leading-snug">{n.message}</p>
+                      <span className="text-[11px] font-bold text-carrot hover:underline inline-flex items-center gap-1 mt-1">
+                        View Details &rarr;
+                      </span>
                     </div>
                   </div>
                 </Link>

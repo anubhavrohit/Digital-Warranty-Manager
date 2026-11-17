@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { WarrantyItem } from '@/types';
 import { getWarrantyStatus, getRemainingDays, formatCurrency, formatDate } from '@/lib/warranty-utils';
 import { StatusBadge } from './Badge';
-import { Calendar, Tag, Eye, Edit3, Trash2, CalendarPlus, ShieldCheck } from 'lucide-react';
+import { Calendar, Tag, Eye, Edit3, Trash2, CalendarPlus, ShieldCheck, ArrowRight } from 'lucide-react';
 import { generateGoogleCalendarUrl } from '@/lib/calendar-utils';
 import { Button } from './Button';
 
@@ -92,32 +92,28 @@ export const WarrantyCard: React.FC<WarrantyCardProps> = ({ warranty, onDelete }
 
       {/* Action Footer */}
       <div className="flex items-center gap-2 pt-3 border-t border-cream-dark/60 dark:border-white/10">
-        <Link href={`/products/${warranty.id}`} className="flex-1">
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full text-xs h-9 flex items-center justify-center gap-1.5 font-bold"
-          >
-            <Eye className="w-3.5 h-3.5" />
+        <Link href={`/products/${warranty.id}`} className="flex-1 group">
+          <button className="w-full h-9 px-3.5 rounded-xl bg-gradient-to-r from-carrot to-orange-500 hover:from-orange-500 hover:to-carrot text-white font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all duration-200 shadow-sm shadow-carrot/25 hover:shadow-md hover:shadow-carrot/35 active:scale-[0.98] cursor-pointer">
             <span>View Details</span>
-          </Button>
+            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform duration-200" />
+          </button>
         </Link>
 
         {/* Unified Quick Actions Group */}
-        <div className="flex items-center gap-1 bg-cream-light/70 dark:bg-white/5 p-0.5 rounded-xl border border-cream-dark/70 dark:border-white/10 shrink-0">
+        <div className="flex items-center gap-1 bg-cream-light/80 dark:bg-white/[0.06] p-1 rounded-xl border border-cream-dark/70 dark:border-white/10 shrink-0">
           <a
             href={generateGoogleCalendarUrl(warranty)}
             target="_blank"
             rel="noopener noreferrer"
             title="Add Expiry Reminder to Google Calendar"
-            className="w-8 h-8 rounded-lg text-forest/70 dark:text-cream/70 hover:text-carrot hover:bg-white dark:hover:bg-white/10 flex items-center justify-center transition-all cursor-pointer"
+            className="w-7 h-7 rounded-lg text-forest/70 dark:text-cream/70 hover:text-carrot hover:bg-white dark:hover:bg-white/15 flex items-center justify-center transition-all cursor-pointer"
           >
             <CalendarPlus className="w-3.5 h-3.5" />
           </a>
           <Link
             href={`/products/${warranty.id}/edit`}
             title="Edit Warranty"
-            className="w-8 h-8 rounded-lg text-forest/70 dark:text-cream/70 hover:text-forest dark:hover:text-white hover:bg-white dark:hover:bg-white/10 flex items-center justify-center transition-all cursor-pointer"
+            className="w-7 h-7 rounded-lg text-forest/70 dark:text-cream/70 hover:text-forest dark:hover:text-white hover:bg-white dark:hover:bg-white/15 flex items-center justify-center transition-all cursor-pointer"
           >
             <Edit3 className="w-3.5 h-3.5" />
           </Link>
@@ -125,7 +121,7 @@ export const WarrantyCard: React.FC<WarrantyCardProps> = ({ warranty, onDelete }
             <button
               onClick={() => onDelete(warranty.id)}
               title="Delete Warranty"
-              className="w-8 h-8 rounded-lg text-forest/50 dark:text-cream/40 hover:text-tomato hover:bg-white dark:hover:bg-rose-950/40 flex items-center justify-center transition-all cursor-pointer"
+              className="w-7 h-7 rounded-lg text-forest/50 dark:text-cream/40 hover:text-tomato hover:bg-white dark:hover:bg-rose-950/40 flex items-center justify-center transition-all cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>

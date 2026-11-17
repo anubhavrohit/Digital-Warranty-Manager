@@ -125,10 +125,11 @@ export default function ExpiringSoonPage() {
                       </div>
                     </div>
 
-                    <Link href={`/products/${item.id}`}>
-                      <Button variant="sunshine" size="sm" className="w-full text-xs" icon={Eye}>
-                        View Details & Claim Info
-                      </Button>
+                    <Link href={`/products/${item.id}`} className="group block">
+                      <button className="w-full h-10 px-4 rounded-2xl bg-gradient-to-r from-carrot to-orange-500 hover:from-orange-500 hover:to-carrot text-white font-extrabold text-xs flex items-center justify-center gap-2 transition-all shadow-sm hover:shadow-md shadow-carrot/20 active:scale-[0.98]">
+                        <span>View Details & Claim Info</span>
+                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                      </button>
                     </Link>
                   </div>
                 );
