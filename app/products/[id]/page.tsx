@@ -186,18 +186,18 @@ export default function ProductDetailPage() {
 
         <main className="p-4 sm:p-6 lg:p-8 space-y-8 max-w-5xl mx-auto w-full">
           {/* Top navigation breadcrumb */}
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <Link href="/products">
-                <button className="p-2 rounded-xl bg-white border border-cream-dark text-forest hover:bg-cream-light">
+                <button className="p-2.5 rounded-xl bg-white dark:bg-white/5 border border-cream-dark dark:border-white/10 text-forest dark:text-cream hover:bg-cream-light dark:hover:bg-white/10 transition-colors">
                   <ArrowLeft className="w-5 h-5" />
                 </button>
               </Link>
               <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-forest/60">
+                <span className="text-xs font-bold uppercase tracking-wider text-forest/60 dark:text-cream/60">
                   {item.brand} &bull; {item.category}
                 </span>
-                <h1 className="text-2xl sm:text-3xl font-extrabold text-forest tracking-tight">
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-forest dark:text-cream tracking-tight">
                   {item.productName}
                 </h1>
               </div>

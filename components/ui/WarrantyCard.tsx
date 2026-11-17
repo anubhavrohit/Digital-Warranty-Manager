@@ -91,38 +91,46 @@ export const WarrantyCard: React.FC<WarrantyCardProps> = ({ warranty, onDelete }
       </div>
 
       {/* Action Footer */}
-      <div className="flex items-center gap-2 pt-3 border-t border-cream-dark/50 dark:border-slate-800">
+      <div className="flex items-center gap-2 pt-3 border-t border-cream-dark/60 dark:border-white/10">
         <Link href={`/products/${warranty.id}`} className="flex-1">
-          <Button variant="outline" size="sm" className="w-full text-xs h-9 flex items-center justify-center gap-1.5">
-            <Eye className="w-3.5 h-3.5" /> View Details
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full text-xs h-9 flex items-center justify-center gap-1.5 font-bold"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            <span>View Details</span>
           </Button>
         </Link>
-        <a
-          href={generateGoogleCalendarUrl(warranty)}
-          target="_blank"
-          rel="noopener noreferrer"
-          title="Add Expiry Reminder to Google Calendar"
-          className="w-9 h-9 rounded-xl text-forest/70 hover:text-carrot hover:bg-cream-light dark:text-slate-300 dark:hover:bg-slate-800 flex items-center justify-center transition-colors border border-cream-dark/40 dark:border-slate-700 cursor-pointer shrink-0"
-        >
-          <CalendarPlus className="w-4 h-4" />
-        </a>
-        <Link href={`/products/${warranty.id}/edit`}>
-          <button
+
+        {/* Unified Quick Actions Group */}
+        <div className="flex items-center gap-1 bg-cream-light/70 dark:bg-white/5 p-0.5 rounded-xl border border-cream-dark/70 dark:border-white/10 shrink-0">
+          <a
+            href={generateGoogleCalendarUrl(warranty)}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Add Expiry Reminder to Google Calendar"
+            className="w-8 h-8 rounded-lg text-forest/70 dark:text-cream/70 hover:text-carrot hover:bg-white dark:hover:bg-white/10 flex items-center justify-center transition-all cursor-pointer"
+          >
+            <CalendarPlus className="w-3.5 h-3.5" />
+          </a>
+          <Link
+            href={`/products/${warranty.id}/edit`}
             title="Edit Warranty"
-            className="w-9 h-9 rounded-xl text-forest/70 hover:text-forest hover:bg-cream-light dark:text-slate-300 dark:hover:bg-slate-800 flex items-center justify-center transition-colors border border-cream-dark/40 dark:border-slate-700 cursor-pointer shrink-0"
+            className="w-8 h-8 rounded-lg text-forest/70 dark:text-cream/70 hover:text-forest dark:hover:text-white hover:bg-white dark:hover:bg-white/10 flex items-center justify-center transition-all cursor-pointer"
           >
-            <Edit3 className="w-4 h-4" />
-          </button>
-        </Link>
-        {onDelete && (
-          <button
-            onClick={() => onDelete(warranty.id)}
-            title="Delete Warranty"
-            className="w-9 h-9 rounded-xl text-tomato hover:bg-tomato-light dark:hover:bg-rose-950/50 flex items-center justify-center transition-colors border border-tomato/20 dark:border-rose-800/50 cursor-pointer shrink-0"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
-        )}
+            <Edit3 className="w-3.5 h-3.5" />
+          </Link>
+          {onDelete && (
+            <button
+              onClick={() => onDelete(warranty.id)}
+              title="Delete Warranty"
+              className="w-8 h-8 rounded-lg text-forest/50 dark:text-cream/40 hover:text-tomato hover:bg-white dark:hover:bg-rose-950/40 flex items-center justify-center transition-all cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

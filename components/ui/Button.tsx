@@ -39,10 +39,10 @@ export const Button: React.FC<ButtonProps> = ({
       'bg-sunshine text-forest hover:bg-sunshine-hover focus:ring-sunshine font-bold shadow-sunshine/20',
     // Outline
     outline:
-      'border-2 border-forest text-forest bg-transparent hover:bg-forest/5 focus:ring-forest',
+      'border border-cream-dark/90 dark:border-white/15 text-forest dark:text-cream bg-white/70 dark:bg-white/5 hover:bg-cream-light dark:hover:bg-white/10 hover:border-forest/40 dark:hover:border-white/30 focus:ring-forest dark:focus:ring-white/20',
     // Ghost
     ghost:
-      'text-forest bg-transparent hover:bg-cream-dark/40 focus:ring-forest shadow-none',
+      'text-forest dark:text-cream bg-transparent hover:bg-cream-dark/40 dark:hover:bg-white/10 focus:ring-forest shadow-none',
   };
 
   const sizeStyles = {

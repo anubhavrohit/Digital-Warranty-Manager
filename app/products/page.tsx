@@ -173,13 +173,13 @@ function ProductsContent() {
           <div className="bg-white p-4 rounded-3xl border border-cream-dark shadow-warm space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div className="relative">
-                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-forest/50" />
+                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-forest/50 dark:text-cream/50" />
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search name, brand, serial..."
-                  className="w-full pl-10 pr-4 py-2.5 bg-cream-light/60 border border-cream-dark/80 rounded-xl text-xs sm:text-sm text-forest placeholder-forest/40 focus:outline-none focus:ring-2 focus:ring-forest"
+                  className="w-full pl-10 pr-4 py-2.5 bg-cream-light/60 dark:bg-white/5 border border-cream-dark/80 dark:border-white/10 rounded-xl text-xs sm:text-sm text-forest dark:text-cream placeholder-forest/40 dark:placeholder-cream/40 focus:outline-none focus:ring-2 focus:ring-forest dark:focus:ring-carrot"
                 />
               </div>
 
@@ -202,19 +202,19 @@ function ProductsContent() {
               />
             </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-cream-dark/50 text-xs">
-              <div className="text-forest/70">
-                Showing <strong className="text-forest">{filteredWarranties.length}</strong> of{' '}
-                <strong className="text-forest">{warranties.length}</strong> products
+            <div className="flex items-center justify-between pt-2 border-t border-cream-dark/50 dark:border-white/10 text-xs">
+              <div className="text-forest/70 dark:text-cream/70">
+                Showing <strong className="text-forest dark:text-white">{filteredWarranties.length}</strong> of{' '}
+                <strong className="text-forest dark:text-white">{warranties.length}</strong> products
               </div>
 
-              <div className="flex items-center gap-1 bg-cream-light p-1 rounded-xl border border-cream-dark/60">
+              <div className="flex items-center gap-1 bg-cream-light dark:bg-white/5 p-1 rounded-xl border border-cream-dark/60 dark:border-white/10">
                 <button
                   onClick={() => setViewMode('grid')}
                   className={`p-1.5 rounded-lg transition-colors ${
                     viewMode === 'grid'
-                      ? 'bg-forest text-sunshine font-bold shadow-sm'
-                      : 'text-forest/70 hover:bg-cream-dark/40'
+                      ? 'bg-forest dark:bg-carrot text-sunshine dark:text-white font-bold shadow-sm'
+                      : 'text-forest/70 dark:text-cream/60 hover:bg-cream-dark/40 dark:hover:bg-white/10'
                   }`}
                   aria-label="Grid View"
                 >
@@ -224,8 +224,8 @@ function ProductsContent() {
                   onClick={() => setViewMode('table')}
                   className={`p-1.5 rounded-lg transition-colors ${
                     viewMode === 'table'
-                      ? 'bg-forest text-sunshine font-bold shadow-sm'
-                      : 'text-forest/70 hover:bg-cream-dark/40'
+                      ? 'bg-forest dark:bg-carrot text-sunshine dark:text-white font-bold shadow-sm'
+                      : 'text-forest/70 dark:text-cream/60 hover:bg-cream-dark/40 dark:hover:bg-white/10'
                   }`}
                   aria-label="Table View"
                 >
