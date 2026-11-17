@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 const CATEGORY_FALLBACKS: Record<string, string> = {
   Mobile: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&auto=format&fit=crop&q=80',
   Laptop: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=800&auto=format&fit=crop&q=80',
@@ -147,3 +149,4 @@ export async function GET(req: NextRequest) {
     }, { status: 500 });
   }
 }
+

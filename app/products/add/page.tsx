@@ -11,8 +11,9 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { FileUploader } from '@/components/ui/FileUploader';
-import { ArrowLeft, PlusCircle, CheckCircle2, AlertCircle, Globe, Sparkles, RefreshCw, ImageIcon } from 'lucide-react';
+import { ArrowLeft, PlusCircle, CheckCircle2, AlertCircle, Globe, Sparkles, RefreshCw, ImageIcon, Scan, CreditCard, ShieldCheck } from 'lucide-react';
 import { fetchProductImageFromInternet } from '@/lib/ocr-service';
+import { BarcodeScannerModal } from '@/components/ui/BarcodeScannerModal';
 
 export default function AddWarrantyPage() {
   const { user, loading, addWarranty, addDocument } = useAuth();
@@ -62,6 +63,9 @@ export default function AddWarrantyPage() {
   };
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [barcodeScannerOpen, setBarcodeScannerOpen] = useState(false);
+  const [hasCreditCardProtection, setHasCreditCardProtection] = useState(false);
+  const [creditCardBank, setCreditCardBank] = useState('HDFC Bank');
 
   useEffect(() => {
     if (!loading && !user) {
@@ -121,6 +125,8 @@ export default function AddWarrantyPage() {
         serialNumber: serialNumber.trim(),
         invoiceNumber: invoiceNumber.trim(),
         notes: notes.trim(),
+        hasCreditCardProtection,
+        creditCardBank: hasCreditCardProtection ? creditCardBank : undefined,
         productImageUrl: productPhotoUrl.trim() || imageUrl.trim() || undefined,
         invoiceImageUrl: imageUrl.trim() || productPhotoUrl.trim() || undefined,
       });
@@ -320,12 +326,28 @@ export default function AddWarrantyPage() {
                     onChange={(e) => setStore(e.target.value)}
                   />
 
-                  <Input
-                    label="Serial Number (S/N)"
-                    placeholder="e.g. SN-ASUS-9938210"
-                    value={serialNumber}
-                    onChange={(e) => setSerialNumber(e.target.value)}
-                  />
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-bold uppercase tracking-wider text-forest/70">
+                        Serial Number (S/N)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setBarcodeScannerOpen(true)}
+                        className="text-[11px] font-bold text-carrot hover:underline flex items-center gap-1"
+                      >
+                        <Scan className="w-3 h-3" />
+                        Scan Barcode
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="e.g. SN-ASUS-9938210"
+                      value={serialNumber}
+                      onChange={(e) => setSerialNumber(e.target.value)}
+                      className="w-full text-xs font-semibold rounded-xl border border-cream-dark bg-white text-forest p-3 focus:outline-none focus:ring-2 focus:ring-carrot"
+                    />
+                  </div>
 
                   <Input
                     label="Invoice / Bill Number"
@@ -333,6 +355,55 @@ export default function AddWarrantyPage() {
                     value={invoiceNumber}
                     onChange={(e) => setInvoiceNumber(e.target.value)}
                   />
+                </div>
+
+                {/* Credit Card Extended Warranty (+1 Year) Benefit */}
+                <div className="mt-4 p-4 rounded-2xl bg-cream-light/60 border border-cream-dark/80 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <CreditCard className="w-5 h-5 text-carrot" />
+                      <div>
+                        <h4 className="text-xs font-bold text-forest flex items-center gap-1.5">
+                          Credit Card Extended Warranty (+1 Year)
+                        </h4>
+                        <p className="text-[11px] text-forest/60">
+                          Did you purchase this product using an eligible credit card?
+                        </p>
+                      </div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={hasCreditCardProtection}
+                      onChange={(e) => setHasCreditCardProtection(e.target.checked)}
+                      className="w-4 h-4 text-carrot rounded accent-carrot cursor-pointer"
+                    />
+                  </div>
+
+                  {hasCreditCardProtection && (
+                    <div className="pt-2 border-t border-cream-dark/60 flex flex-col sm:flex-row items-center gap-3">
+                      <span className="text-xs font-semibold text-forest/70 shrink-0">
+                        Issuing Bank / Card Brand:
+                      </span>
+                      <select
+                        value={creditCardBank}
+                        onChange={(e) => setCreditCardBank(e.target.value)}
+                        className="text-xs font-semibold rounded-xl border border-cream-dark bg-white text-forest p-2.5 w-full sm:w-64"
+                      >
+                        <option value="HDFC Bank (Infinia / Regalia / Diners)">HDFC Bank (Infinia / Regalia / Diners)</option>
+                        <option value="ICICI Bank (Emeralde / Sapphiro)">ICICI Bank (Emeralde / Sapphiro)</option>
+                        <option value="American Express (Platinum / Gold)">American Express (Platinum / Gold)</option>
+                        <option value="Axis Bank (Magnus / Atlas / Reserve)">Axis Bank (Magnus / Atlas / Reserve)</option>
+                        <option value="SBI Card (Elite / Prime)">SBI Card (Elite / Prime)</option>
+                        <option value="Chase (Sapphire / Freedom)">Chase (Sapphire / Freedom)</option>
+                        <option value="Citi / Standard Chartered">Citi / Standard Chartered</option>
+                        <option value="Other Premium Visa / Mastercard">Other Premium Visa / Mastercard</option>
+                      </select>
+                      <span className="text-[11px] text-kiwi font-bold flex items-center gap-1">
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        +12 Months Extended Protection Tracked
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -395,6 +466,17 @@ export default function AddWarrantyPage() {
           </div>
         </main>
       </div>
+
+      {/* Live Barcode Scanner Modal */}
+      <BarcodeScannerModal
+        isOpen={barcodeScannerOpen}
+        onClose={() => setBarcodeScannerOpen(false)}
+        onDetected={(code) => {
+          setSerialNumber(code);
+        }}
+        title="Scan Serial Barcode / QR"
+        description="Point camera at product box barcode or serial sticker"
+      />
     </div>
   );
 }

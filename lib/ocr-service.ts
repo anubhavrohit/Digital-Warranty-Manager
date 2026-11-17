@@ -130,42 +130,65 @@ export async function extractWarrantyDataFromImage(
   let mimeType = 'image/jpeg';
   const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
 
-  if (isPdf) {
-    if (onProgress) onProgress('Rendering PDF page...', 0.4);
-    const canvas = await renderPdfPageToCanvas(file);
-    if (!canvas) {
-      throw new Error('Failed to render PDF page for Gemini AI Vision OCR.');
+  try {
+    if (isPdf) {
+      if (onProgress) onProgress('Rendering PDF page...', 0.35);
+      const canvas = await renderPdfPageToCanvas(file);
+      if (!canvas) {
+        throw new Error('Failed to render PDF page for AI Vision OCR.');
+      }
+      imageBase64 = canvas.toDataURL('image/jpeg', 0.85);
+      mimeType = 'image/jpeg';
+    } else {
+      if (onProgress) onProgress('Optimizing image payload...', 0.35);
+      const optimized = await prepareOptimizedImage(file);
+      imageBase64 = optimized.base64;
+      mimeType = optimized.mimeType;
     }
-    imageBase64 = canvas.toDataURL('image/jpeg', 0.85);
-    mimeType = 'image/jpeg';
-  } else {
-    if (onProgress) onProgress('Optimizing image payload...', 0.4);
-    const optimized = await prepareOptimizedImage(file);
-    imageBase64 = optimized.base64;
-    mimeType = optimized.mimeType;
+
+    if (onProgress) onProgress('Analyzing document with Gemini AI...', 0.7);
+
+    const res = await fetch('/api/ocr', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        imageBase64,
+        mimeType,
+        mode: 'warranty',
+        selectedModel,
+      }),
+    });
+
+    const json = await res.json();
+
+    if (res.ok && json.success && json.data) {
+      if (onProgress) onProgress('Gemini AI Vision Extraction Complete!', 1.0);
+      return json.data;
+    }
+
+    throw new Error(json.error || 'Gemini Vision AI response unsuccessful');
+  } catch (err: any) {
+    console.warn('AI OCR unavailable, seamlessly falling back to local OCR engine:', err?.message || err);
+    if (onProgress) onProgress('AI busy or offline. Running local OCR engine...', 0.5);
+
+    let extractedText = '';
+    if (isPdf) {
+      extractedText = await extractTextFromPdfFile(file);
+    }
+
+    if (!extractedText.trim()) {
+      let canvas: HTMLCanvasElement | null = null;
+      if (isPdf) {
+        canvas = await renderPdfPageToCanvas(file);
+      }
+      const processed = await preprocessImageForOCR(canvas || file);
+      extractedText = await runTesseractOCR(processed, onProgress);
+    }
+
+    const fallbackResult = parseTextToWarrantyResult(extractedText, file.name);
+    if (onProgress) onProgress('Local OCR Extraction Complete!', 1.0);
+    return fallbackResult;
   }
-
-  if (onProgress) onProgress('Analyzing document with Gemini AI...', 0.7);
-
-  const res = await fetch('/api/ocr', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      imageBase64,
-      mimeType,
-      mode: 'warranty',
-      selectedModel,
-    }),
-  });
-
-  const json = await res.json();
-
-  if (!res.ok || !json.success || !json.data) {
-    throw new Error(json.error || 'Gemini Multimodal AI Vision OCR processing failed.');
-  }
-
-  if (onProgress) onProgress('Gemini AI Vision Extraction Complete!', 1.0);
-  return json.data;
 }
 
 /**
@@ -700,42 +723,70 @@ export async function performGenericOCR(
   let mimeType = 'image/jpeg';
   const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
 
-  if (isPdf) {
-    if (onProgress) onProgress('Rendering PDF page...', 0.4);
-    const canvas = await renderPdfPageToCanvas(file);
-    if (!canvas) {
-      throw new Error('Failed to render PDF page for Gemini AI Vision OCR.');
+  try {
+    if (isPdf) {
+      if (onProgress) onProgress('Rendering PDF page...', 0.35);
+      const canvas = await renderPdfPageToCanvas(file);
+      if (!canvas) {
+        throw new Error('Failed to render PDF page for Gemini AI Vision OCR.');
+      }
+      imageBase64 = canvas.toDataURL('image/jpeg', 0.85);
+      mimeType = 'image/jpeg';
+    } else {
+      if (onProgress) onProgress('Optimizing image payload...', 0.35);
+      const optimized = await prepareOptimizedImage(file);
+      imageBase64 = optimized.base64;
+      mimeType = optimized.mimeType;
     }
-    imageBase64 = canvas.toDataURL('image/jpeg', 0.85);
-    mimeType = 'image/jpeg';
-  } else {
-    if (onProgress) onProgress('Optimizing image payload...', 0.4);
-    const optimized = await prepareOptimizedImage(file);
-    imageBase64 = optimized.base64;
-    mimeType = optimized.mimeType;
+
+    if (onProgress) onProgress('Analyzing document with Gemini AI...', 0.7);
+
+    const res = await fetch('/api/ocr', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        imageBase64,
+        mimeType,
+        mode: 'generic',
+        selectedModel,
+      }),
+    });
+
+    const json = await res.json();
+
+    if (res.ok && json.success && json.data) {
+      if (onProgress) onProgress('Gemini AI Analysis Complete!', 1.0);
+      return json.data;
+    }
+
+    throw new Error(json.error || 'Gemini Vision AI response unsuccessful');
+  } catch (err: any) {
+    console.warn('AI OCR unavailable, seamlessly falling back to local deep scan OCR engine:', err?.message || err);
+    if (onProgress) onProgress('AI busy or offline. Running local OCR deep scan...', 0.5);
+
+    let extractedText = '';
+    let method: 'PDF Direct Text' | 'Tesseract.js Engine' = 'Tesseract.js Engine';
+
+    if (isPdf) {
+      extractedText = await extractTextFromPdfFile(file);
+      if (extractedText.trim().length > 30) {
+        method = 'PDF Direct Text';
+      }
+    }
+
+    if (!extractedText.trim()) {
+      let canvas: HTMLCanvasElement | null = null;
+      if (isPdf) {
+        canvas = await renderPdfPageToCanvas(file);
+      }
+      const processed = await preprocessImageForOCR(canvas || file);
+      extractedText = await runTesseractOCR(processed, onProgress);
+    }
+
+    const fallbackResult = categorizeGenericOCRText(extractedText, file.name, method);
+    if (onProgress) onProgress('Local OCR Analysis Complete!', 1.0);
+    return fallbackResult;
   }
-
-  if (onProgress) onProgress('Analyzing document with Gemini AI...', 0.7);
-
-  const res = await fetch('/api/ocr', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      imageBase64,
-      mimeType,
-      mode: 'generic',
-      selectedModel,
-    }),
-  });
-
-  const json = await res.json();
-
-  if (!res.ok || !json.success || !json.data) {
-    throw new Error(json.error || 'Gemini Multimodal AI Vision OCR processing failed.');
-  }
-
-  if (onProgress) onProgress('Gemini AI Analysis Complete!', 1.0);
-  return json.data;
 }
 
 /**

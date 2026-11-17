@@ -45,6 +45,10 @@ export interface WarrantyItem {
   notes?: string;
   productImageUrl?: string;
   invoiceImageUrl?: string;
+  hasCreditCardProtection?: boolean;
+  creditCardBank?: string;
+  creditCardType?: string;
+  resaleEstimate?: number;
   createdAt: string;
   updatedAt: string;
 }

@@ -51,7 +51,9 @@ import {
   Activity,
   Globe,
   ImageIcon,
+  CreditCard,
 } from 'lucide-react';
+import { BarcodeScannerModal } from '@/components/ui/BarcodeScannerModal';
 
 export default function UploadBillPage() {
   const { user, loading, addWarranty, addDocument } = useAuth();
@@ -178,6 +180,9 @@ export default function UploadBillPage() {
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [vendor, setVendor] = useState('');
   const [notes, setNotes] = useState('');
+  const [barcodeScannerOpen, setBarcodeScannerOpen] = useState(false);
+  const [hasCreditCardProtection, setHasCreditCardProtection] = useState(false);
+  const [creditCardBank, setCreditCardBank] = useState('HDFC Bank');
 
   // Web-Fetched Product Photo State
   const [productPhotoUrl, setProductPhotoUrl] = useState<string>('');
@@ -366,6 +371,8 @@ export default function UploadBillPage() {
         serialNumber: serialNumber.trim(),
         invoiceNumber: invoiceNumber.trim(),
         notes: notes.trim(),
+        hasCreditCardProtection,
+        creditCardBank: hasCreditCardProtection ? creditCardBank : undefined,
         productImageUrl: productPhotoUrl.trim() || previewToUse,
         invoiceImageUrl: previewToUse,
       });
@@ -1415,9 +1422,19 @@ export default function UploadBillPage() {
                           <div>
                             <div className="flex items-center justify-between mb-1">
                               <span className="text-xs font-bold uppercase tracking-wider text-forest/90">Serial Number</span>
-                              {extractedData?.fieldsExtracted?.serialNumber ? (
-                                <span className="text-[10px] font-bold text-kiwi">✨ Auto-Extracted</span>
-                              ) : null}
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setBarcodeScannerOpen(true)}
+                                  className="text-[11px] font-bold text-carrot hover:underline flex items-center gap-1"
+                                >
+                                  <Scan className="w-3 h-3" />
+                                  Scan Barcode
+                                </button>
+                                {extractedData?.fieldsExtracted?.serialNumber ? (
+                                  <span className="text-[10px] font-bold text-kiwi">✨ Auto-Extracted</span>
+                                ) : null}
+                              </div>
                             </div>
                             <Input
                               placeholder="e.g. SN-8947201"
@@ -1496,6 +1513,17 @@ export default function UploadBillPage() {
           )}
         </main>
       </div>
+
+      {/* Live Barcode Scanner Modal */}
+      <BarcodeScannerModal
+        isOpen={barcodeScannerOpen}
+        onClose={() => setBarcodeScannerOpen(false)}
+        onDetected={(code) => {
+          setSerialNumber(code);
+        }}
+        title="Scan Serial Barcode / QR"
+        description="Point camera at product box barcode or serial sticker"
+      />
     </div>
   );
 }

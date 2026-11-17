@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { WarrantyItem } from '@/types';
 import { getWarrantyStatus, getRemainingDays, formatCurrency, formatDate } from '@/lib/warranty-utils';
 import { StatusBadge } from './Badge';
-import { Calendar, Tag, Eye, Edit3, Trash2 } from 'lucide-react';
+import { Calendar, Tag, Eye, Edit3, Trash2, CalendarPlus, ShieldCheck } from 'lucide-react';
+import { generateGoogleCalendarUrl } from '@/lib/calendar-utils';
 import { Button } from './Button';
 
 interface WarrantyCardProps {
@@ -96,6 +97,15 @@ export const WarrantyCard: React.FC<WarrantyCardProps> = ({ warranty, onDelete }
             <Eye className="w-3.5 h-3.5" /> View Details
           </Button>
         </Link>
+        <a
+          href={generateGoogleCalendarUrl(warranty)}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Add Expiry Reminder to Google Calendar"
+          className="w-9 h-9 rounded-xl text-forest/70 hover:text-carrot hover:bg-cream-light dark:text-slate-300 dark:hover:bg-slate-800 flex items-center justify-center transition-colors border border-cream-dark/40 dark:border-slate-700 cursor-pointer shrink-0"
+        >
+          <CalendarPlus className="w-4 h-4" />
+        </a>
         <Link href={`/products/${warranty.id}/edit`}>
           <button
             title="Edit Warranty"

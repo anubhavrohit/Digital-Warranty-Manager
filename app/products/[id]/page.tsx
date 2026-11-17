@@ -28,7 +28,20 @@ import {
   ExternalLink,
   CheckCircle2,
   AlertTriangle,
+  Sparkles,
+  TrendingDown,
+  CreditCard,
+  Phone,
+  Mail,
+  MessageSquare,
+  ShieldCheck,
+  Building,
+  HelpCircle,
 } from 'lucide-react';
+import { ClaimAssistantModal } from '@/components/ui/ClaimAssistantModal';
+import { generateGoogleCalendarUrl, downloadICalFile } from '@/lib/calendar-utils';
+import { getBrandSupportInfo } from '@/lib/brand-support';
+import { calculateResaleValuation, calculateCreditCardExtendedWarranty } from '@/lib/valuation-utils';
 
 export default function ProductDetailPage() {
   const { user, loading, warranties, deleteWarranty, addDocument, documents } = useAuth();
@@ -41,6 +54,8 @@ export default function ProductDetailPage() {
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [claimModalOpen, setClaimModalOpen] = useState(false);
+  const [calendarMenuOpen, setCalendarMenuOpen] = useState(false);
 
   // New Document modal state
   const [docName, setDocName] = useState('');
@@ -97,6 +112,12 @@ export default function ProductDetailPage() {
 
   // Attached files for this product
   const attachedDocs = documents.filter((d) => d.warrantyId === item.id);
+
+  // Resale valuation & Brand support calculations
+  const resale = calculateResaleValuation(item);
+  const brandSupport = getBrandSupportInfo(item.brand);
+  const ccWarranty = calculateCreditCardExtendedWarranty(item);
+  const googleCalUrl = generateGoogleCalendarUrl(item);
 
   const handleDeleteConfirm = async () => {
     try {
@@ -182,7 +203,54 @@ export default function ProductDetailPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Claim Warranty with AI button */}
+              <Button
+                variant="primary"
+                size="sm"
+                icon={Sparkles}
+                onClick={() => setClaimModalOpen(true)}
+              >
+                Claim (AI)
+              </Button>
+
+              {/* Add to Calendar Sync Dropdown */}
+              <div className="relative">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={Calendar}
+                  onClick={() => setCalendarMenuOpen(!calendarMenuOpen)}
+                >
+                  Sync Calendar
+                </Button>
+
+                {calendarMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-52 bg-white dark:bg-[#161a1e] rounded-2xl shadow-xl border border-cream-dark dark:border-white/10 p-2 z-20 space-y-1">
+                    <a
+                      href={googleCalUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setCalendarMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-forest dark:text-cream hover:bg-cream-light dark:hover:bg-white/10 rounded-xl transition-colors"
+                    >
+                      <Calendar className="w-4 h-4 text-carrot" />
+                      Google Calendar
+                    </a>
+                    <button
+                      onClick={() => {
+                        downloadICalFile(item);
+                        setCalendarMenuOpen(false);
+                      }}
+                      className="w-full text-left flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-forest dark:text-cream hover:bg-cream-light dark:hover:bg-white/10 rounded-xl transition-colors"
+                    >
+                      <Download className="w-4 h-4 text-forest" />
+                      Apple / Outlook (.ics)
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <Link href={`/products/${item.id}/edit`}>
                 <Button variant="outline" size="sm" icon={Edit3}>
                   Edit
@@ -329,6 +397,164 @@ export default function ProductDetailPage() {
             </div>
           </div>
 
+          {/* Resale Value, Credit Card Protection & Brand Directory Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* 1. Resale Value & Trade-In Health */}
+            <div className="bg-white dark:bg-[#161a1e] rounded-3xl border border-cream-dark dark:border-white/10 p-6 shadow-warm space-y-4">
+              <div className="flex items-center justify-between border-b border-cream-dark/60 dark:border-white/10 pb-3">
+                <span className="text-xs font-bold uppercase tracking-wider text-forest/70 dark:text-cream/70 flex items-center gap-1.5">
+                  <TrendingDown className="w-4 h-4 text-carrot" />
+                  Estimated Resale Value
+                </span>
+                <span className="text-[11px] font-bold text-forest/60 dark:text-cream/60">
+                  {resale.ageInMonths} mo old
+                </span>
+              </div>
+
+              <div>
+                <h4 className="text-2xl font-extrabold text-forest dark:text-cream">
+                  {formatCurrency(resale.currentEstimatedValue)}
+                </h4>
+                <p className="text-xs text-forest/60 dark:text-cream/60 mt-0.5">
+                  Original: {formatCurrency(resale.originalPrice)} &bull; Depreciated by{' '}
+                  <strong className="text-tomato">{resale.depreciationPercent}%</strong>
+                </p>
+              </div>
+
+              {/* Depreciation Bar */}
+              <div className="w-full bg-cream-light dark:bg-white/10 h-2.5 rounded-full overflow-hidden">
+                <div
+                  className="bg-carrot h-full rounded-full transition-all"
+                  style={{ width: `${100 - resale.depreciationPercent}%` }}
+                />
+              </div>
+
+              {resale.warrantyBonusAmount > 0 && (
+                <div className="p-2.5 rounded-xl bg-kiwi/15 border border-kiwi/30 text-[11px] font-semibold text-forest dark:text-cream flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-kiwi shrink-0" />
+                  <span>
+                    Active warranty adds <strong>+{formatCurrency(resale.warrantyBonusAmount)}</strong> premium value!
+                  </span>
+                </div>
+              )}
+
+              <p className="text-[11px] text-forest/70 dark:text-cream/70 leading-relaxed italic">
+                {resale.recommendation}
+              </p>
+            </div>
+
+            {/* 2. Credit Card Extended Warranty Protection */}
+            <div className="bg-white dark:bg-[#161a1e] rounded-3xl border border-cream-dark dark:border-white/10 p-6 shadow-warm space-y-4">
+              <div className="flex items-center justify-between border-b border-cream-dark/60 dark:border-white/10 pb-3">
+                <span className="text-xs font-bold uppercase tracking-wider text-forest/70 dark:text-cream/70 flex items-center gap-1.5">
+                  <CreditCard className="w-4 h-4 text-carrot" />
+                  Credit Card Protection
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-sunshine/20 text-forest dark:text-sunshine">
+                  +1 Year
+                </span>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                <div>
+                  <span className="text-forest/60 dark:text-cream/60 block text-[11px]">Extended Expiry Date:</span>
+                  <strong className="text-sm font-bold text-forest dark:text-cream">
+                    {formatDate(ccWarranty.extendedEndDate)}
+                  </strong>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-cream-light/60 dark:bg-white/5 border border-cream-dark/60 dark:border-white/10 text-[11px] space-y-1">
+                  <div className="font-bold text-forest dark:text-cream flex items-center gap-1">
+                    <ShieldCheck className="w-3.5 h-3.5 text-kiwi" />
+                    Complimentary +12 Mo Coverage
+                  </div>
+                  <p className="text-forest/70 dark:text-cream/70 leading-relaxed">
+                    Most Visa Signature/Infinite, Amex & premium Mastercard cards extend repair coverage by 1 extra year.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setClaimModalOpen(true)}
+                className="w-full text-center text-xs font-bold text-carrot hover:underline pt-1 block"
+              >
+                File Claim via Card / Brand &rarr;
+              </button>
+            </div>
+
+            {/* 3. Official Brand Customer Support Directory */}
+            <div className="bg-white dark:bg-[#161a1e] rounded-3xl border border-cream-dark dark:border-white/10 p-6 shadow-warm space-y-4">
+              <div className="flex items-center justify-between border-b border-cream-dark/60 dark:border-white/10 pb-3">
+                <span className="text-xs font-bold uppercase tracking-wider text-forest/70 dark:text-cream/70 flex items-center gap-1.5">
+                  <Building className="w-4 h-4 text-carrot" />
+                  Brand Support Desk
+                </span>
+                <span className="text-[11px] font-bold text-forest/60 dark:text-cream/60">
+                  {item.brand}
+                </span>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                {brandSupport?.phone && (
+                  <div className="flex items-center justify-between py-1 border-b border-cream-dark/40 dark:border-white/10">
+                    <span className="text-forest/70 dark:text-cream/70 flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5" />
+                      Toll Free / Care
+                    </span>
+                    <a
+                      href={`tel:${brandSupport.phone.replace(/\s+/g, '')}`}
+                      className="font-bold text-forest dark:text-cream hover:text-carrot font-mono"
+                    >
+                      {brandSupport.phone}
+                    </a>
+                  </div>
+                )}
+
+                {brandSupport?.email && (
+                  <div className="flex items-center justify-between py-1 border-b border-cream-dark/40 dark:border-white/10">
+                    <span className="text-forest/70 dark:text-cream/70 flex items-center gap-1.5">
+                      <Mail className="w-3.5 h-3.5" />
+                      Support Email
+                    </span>
+                    <a
+                      href={`mailto:${brandSupport.email}`}
+                      className="font-bold text-forest dark:text-cream hover:text-carrot truncate max-w-[140px]"
+                    >
+                      {brandSupport.email}
+                    </a>
+                  </div>
+                )}
+
+                {brandSupport?.portalUrl && (
+                  <div className="flex items-center justify-between py-1">
+                    <span className="text-forest/70 dark:text-cream/70 flex items-center gap-1.5">
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Service Centers
+                    </span>
+                    <a
+                      href={brandSupport.portalUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-bold text-carrot hover:underline"
+                    >
+                      Find Centers &rarr;
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full text-xs"
+                icon={Sparkles}
+                onClick={() => setClaimModalOpen(true)}
+              >
+                Draft AI Claim Notice
+              </Button>
+            </div>
+          </div>
+
           {/* Documents & Receipts Repository Section */}
           <div className="bg-white rounded-3xl border border-cream-dark p-6 sm:p-8 shadow-warm space-y-6">
             <div className="flex items-center justify-between pb-4 border-b border-cream-dark/60">
@@ -458,6 +684,17 @@ export default function ProductDetailPage() {
           </div>
         </form>
       </Modal>
+
+      {/* AI Warranty Claim Assistant Modal */}
+      {item && (
+        <ClaimAssistantModal
+          isOpen={claimModalOpen}
+          onClose={() => setClaimModalOpen(false)}
+          warranty={item}
+          customerName={user?.name || 'Product Owner'}
+          customerEmail={user?.email || ''}
+        />
+      )}
     </div>
   );
 }
